@@ -8,6 +8,7 @@ const Game: React.FC = () => {
 
   // Changelog Data
   const CHANGELOG = [
+      { date: "2025-12-19", ver: "v2.4", desc: "修复：宝箱现在会触发道具三选一界面。修复：限制输入队列防止自动转弯。优化：经验宝石使用新美术资源。调整：所有武器子弹飞行速度减半。" },
       { date: "2025-12-10", ver: "v2.3", desc: "修复：部分房间墙壁显示异常(负坐标问题)。修复：磁铁吸附道具时跟随龙头的Bug。" },
       { date: "2025-12-08", ver: "v2.2", desc: "修复：画面不跟随出生点房间Bug。修复：武器射速属性未生效的问题，调整毒液速度。" },
       { date: "2025-12-06", ver: "v2.1", desc: "新增双人模式：1P(方向键) / 2P(WASD)。共享生命/背包/经验。进出门同步传送。" },
@@ -143,13 +144,13 @@ const Game: React.FC = () => {
     // Definitions (WEAPONS & PASSIVES remain same)
     const WEAPONS: any = {
         CLASSIC: { id: 'classic', name: "龙息", rate: 40, damage: 15, speed: 0.75, type: 'classic', icon: '🔥', img: '/classic.png', color: '#ff5500', desc: "标准的远程火球。", upg: "每级: 伤害+20%" }, 
+        SNOWBALL: { id: 'snowball', name: "雪球", rate: 30, damage: 12, speed: 1.0, type: 'snowball', icon: '❄️', img: '/snowball.png', color: '#4da6ff', desc: "有几率冻结敌人。", upg: "每级: 伤害+20%" },
+        VENOM:    { id: 'venom', name: "毒液", rate: 40, damage: 8, speed: 0.75, type: 'venom', icon: '🤢', img: '/venom.png', color: '#00ff00', desc: "使敌人中毒持续掉血。", upg: "每级: 伤害+20%" },
         TRIPLE:  { id: 'triple', name: "三头蛇",  rate: 60, damage: 10, speed: 0.5, type: 'triple', icon: '🔱', img: '/triple.png', color: '#00ffaa', desc: "向三个方向发射子弹。", upg: "每级: 伤害+20%" }, 
         RAPID:   { id: 'rapid', name: "风暴",   rate: 24, damage: 5,  speed: 1.25, type: 'rapid', icon: '⚡', img: '/rapid.png', color: '#ffff00', desc: "极快的射速。加成: 移速+10%。", upg: "每级: 伤害+20%, 移速+10%" }, 
         HEAVY:   { id: 'heavy', name: "巨炮",   rate: 120, damage: 50, speed: 0.5, type: 'heavy', icon: '💣', img: '/heavy.png', color: '#ff0000', desc: "缓慢但造成大范围爆炸。能击碎墙壁。副作用: 移速降低。", upg: "每级: 伤害+20%, 爆炸范围+1格" },
-        SNOWBALL: { id: 'snowball', name: "雪球", rate: 30, damage: 12, speed: 1.0, type: 'snowball', icon: '❄️', img: '/snowball.png', color: '#4da6ff', desc: "有几率冻结敌人。", upg: "每级: 伤害+20%" },
-        VENOM:    { id: 'venom', name: "毒液", rate: 40, damage: 8, speed: 0.75, type: 'venom', icon: '🤢', img: '/venom.png', color: '#00ff00', desc: "使敌人中毒持续掉血。", upg: "每级: 伤害+20%" },
         SIDE:     { id: 'side', name: "侧舷炮", rate: 60, damage: 4, speed: 0.5, type: 'side', icon: '⚓', img: '/side.png', color: '#777777', desc: "蛇身每隔一节向两侧开火。副作用: 降低主武器伤害。", upg: "每级: 伤害+20%, 主武器-20%" },
-        PLASMA:   { id: 'plasma', name: "电浆", rate: 24, damage: 12, speed: 2.5, type: 'plasma', icon: '🌀', img: '/plasma.png', color: '#00ffff', desc: "命中后连锁电击周围2格内的敌人。", upg: "每级: 伤害+15%, 连锁范围+1格" },
+        PLASMA:   { id: 'plasma', name: "电浆", rate: 24, damage: 12, speed: 1.25, type: 'plasma', icon: '🌀', img: '/plasma.png', color: '#00ffff', desc: "命中后连锁电击周围2格内的敌人。", upg: "每级: 伤害+15%, 连锁范围+1格" },
     };
 
     const PASSIVES: any[] = [
@@ -159,7 +160,7 @@ const Game: React.FC = () => {
         { id: 'spd', name: '风翼', stat: 'speedMod', val: 0.2, icon: '⏩', img: '/spd.png', desc: '增加子弹飞行速度与射速。', upg: '每级: 速度+20%' },
         { id: 'magnet', name: '磁石', stat: 'pickupRange', val: 1, icon: '🧲', img: '/magnet.png', desc: '增加道具拾取范围。', upg: '每级: 范围+1.5格' },
         { id: 'berserk', name: '狂暴', stat: 'berserk', val: 0.3, icon: '🩸', img: '/berserk.png', desc: '生命值越低射速越快。', upg: '每级: 效果增强30%' },
-        { id: 'devour', name: '贪婪', stat: 'devour', val: 1, icon: '🦖', img: '/devour.png', desc: '吞噬敌人/羊并回血(5s冷却)，羊也提供经验。', upg: '每级: 冷却-15%, 吞噬经验+50%' },
+        { id: 'devour', name: '贪婪', stat: 'devour', val: 1, icon: '🦖', img: '/devour.png', desc: '吞噬敌人/羊时回复10%最大生命(5s冷却)，羊也提供经验。', upg: '每级: 冷却-15%, 回血+10%, 经验+50%' },
         { id: 'bounce', name: '弹射', stat: 'bounce', val: 1, icon: '🏀', img: '/bounce.png', desc: '子弹在墙壁上反弹。', upg: '每级: 反弹次数+1' },
         { id: 'lucky', name: '幸运', stat: 'lucky', val: 0.1, icon: '🍀', img: '/lucky.png', desc: '增加箱子和墙壁掉落物品的几率。', upg: '每级: 掉率+10%' },
         { id: 'miner', name: '矿工', stat: 'miner', val: 0.25, icon: '⛏️', img: '/miner.png', desc: '破坏障碍物获得经验(0.25)。', upg: '每级: 经验+0.25' },
@@ -1148,33 +1149,8 @@ const Game: React.FC = () => {
         // 确保坐标是整数，避免浮点坐标导致无法拾取
         x = Math.floor(x);
         y = Math.floor(y);
-        const allItems: any[] = [];
-        const weaponKeys = Object.keys(WEAPONS);
-        
-        weaponKeys.forEach(k => {
-            const w = WEAPONS[k];
-            const owned = weaponInventory.find((i: any) => i.id === w.id);
-            allItems.push({ type: 'weapon', data: w, weight: owned ? 15 : 10 });
-        });
-        
-        PASSIVES.forEach(p => {
-             const owned = passiveInventory.find((i: any) => i.id === p.id);
-             allItems.push({ type: 'passive', data: p, weight: owned ? 15 : 10 });
-        });
-
-        const totalWeight = allItems.reduce((acc, item) => acc + item.weight, 0);
-        let randomVal = Math.random() * totalWeight;
-        let selected = allItems[0];
-        
-        for (const item of allItems) {
-            randomVal -= item.weight;
-            if (randomVal <= 0) {
-                selected = item;
-                break;
-            }
-        }
-        
-        worldObjects.pickups.push({ x: x, y: y, type: selected.type, data: selected.data });
+        // 宝箱掉落：玩家捡到时触发三选一界面
+        worldObjects.pickups.push({ x: x, y: y, type: 'chest', data: null });
     }
 
     function getWeaponStack(id: string) {
@@ -1302,15 +1278,18 @@ const Game: React.FC = () => {
                              // Food logic
                              let consumed = false;
                              if (item.type === 'sheep') {
-                                currentHp = Math.min(maxHp, currentHp + 5);
-                                score += 10; consumed = true;
-                                createParticles(closestHead.x, closestHead.y, '#f00', 5);
-                                SoundSystem.play('pickup');
                                 const devourLevel = getPassiveTotal('devour');
+                                // 基础回血5，贪婪额外回复10% * devourLevel的最大生命值
+                                let healAmount = 5;
                                 if (devourLevel > 0) {
+                                    healAmount += Math.floor(maxHp * 0.1 * devourLevel);
                                     const xpMult = 1 + ((devourLevel-1) * 0.5); 
                                     gainXp(Math.floor(5 * xpMult));
                                 }
+                                currentHp = Math.min(maxHp, currentHp + healAmount);
+                                score += 10; consumed = true;
+                                createParticles(closestHead.x, closestHead.y, '#f00', 5);
+                                SoundSystem.play('pickup');
                              } else if (item.type === 'wildfire') {
                                 const learnerBonus = 1 + getPassiveTotal('learner');
                                 gainXp(2 * learnerBonus);
@@ -1347,16 +1326,18 @@ const Game: React.FC = () => {
         let consumed = false;
 
         if (item.type === 'sheep') {
-            currentHp = Math.min(maxHp, currentHp + 5);
+            const devourLevel = getPassiveTotal('devour');
+            // 基础回血5，贪婪额外回复10% * devourLevel的最大生命值
+            let healAmount = 5;
+            if (devourLevel > 0) {
+                healAmount += Math.floor(maxHp * 0.1 * devourLevel);
+                const xpMult = 1 + ((devourLevel-1) * 0.5); 
+                gainXp(Math.floor(5 * xpMult));
+            }
+            currentHp = Math.min(maxHp, currentHp + healAmount);
             score += 10; consumed = true;
             createParticles(checkHead.x, checkHead.y, '#f00', 5);
             SoundSystem.play('pickup');
-            
-            const devourLevel = getPassiveTotal('devour');
-            if (devourLevel > 0) {
-                 const xpMult = 1 + ((devourLevel-1) * 0.5); 
-                 gainXp(Math.floor(5 * xpMult));
-            }
             
             worldObjects.items.splice(itemIndex, 1);
         } 
@@ -1373,6 +1354,9 @@ const Game: React.FC = () => {
             if (devourLevel > 0 && devourTimer <= 0) {
                 createParticles(checkHead.x, checkHead.y, '#ff00ff', 10); 
                 SoundSystem.play('eat');
+                // 回复10% * devourLevel的最大生命值
+                const healAmount = Math.floor(maxHp * 0.1 * devourLevel);
+                currentHp = Math.min(maxHp, currentHp + healAmount);
                 const xpMult = 1 + ((devourLevel-1) * 0.5); 
                 gainXp(Math.floor(5 * xpMult)); 
                 score += 50;
@@ -1719,7 +1703,12 @@ const Game: React.FC = () => {
     }
 
     function tryPickup(p: any) {
-        if (p.type === 'weapon') {
+        if (p.type === 'chest') {
+            // 宝箱：触发三选一界面
+            triggerLevelUpSelection();
+            SoundSystem.play('pickup');
+            return true;
+        } else if (p.type === 'weapon') {
             const existing = weaponInventory.find(w => w.id === p.data.id);
             if (existing) {
                 existing.stack++;
@@ -2106,6 +2095,9 @@ const Game: React.FC = () => {
     
         for (let i = worldObjects.bullets.length - 1; i >= 0; i--) {
             let b = worldObjects.bullets[i];
+            // 保存上一帧位置用于射线碰撞检测
+            const prevX = b.x;
+            const prevY = b.y;
             b.x += b.vx; b.y += b.vy; b.life--;
             let hit = false;
             
@@ -2191,11 +2183,26 @@ const Game: React.FC = () => {
             }
             
             if (!hit) {
-                let eIdx = worldObjects.items.findIndex((it: any) => 
-                    it.type === 'walker' && 
-                    b.x >= it.x && b.x < it.x + (it.w || 1) &&
-                    b.y >= it.y && b.y < it.y + (it.h || 1)
-                );
+                // 射线碰撞检测：检查子弹从上一位置到当前位置的路径是否穿过敌人
+                let eIdx = worldObjects.items.findIndex((it: any) => {
+                    if (it.type !== 'walker') return false;
+                    const itW = it.w || 1;
+                    const itH = it.h || 1;
+                    // 检查当前位置
+                    if (b.x >= it.x && b.x < it.x + itW && b.y >= it.y && b.y < it.y + itH) return true;
+                    // 检查路径上的点（用于快速子弹）
+                    const speed = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+                    if (speed > 0.5) {
+                        const steps = Math.ceil(speed * 2);
+                        for (let s = 1; s < steps; s++) {
+                            const t = s / steps;
+                            const checkX = prevX + (b.x - prevX) * t;
+                            const checkY = prevY + (b.y - prevY) * t;
+                            if (checkX >= it.x && checkX < it.x + itW && checkY >= it.y && checkY < it.y + itH) return true;
+                        }
+                    }
+                    return false;
+                });
                 if (eIdx !== -1) {
                     let target = worldObjects.items[eIdx];
                     if (!b.isHeavy) {
@@ -2680,16 +2687,17 @@ const Game: React.FC = () => {
             goToCharSelect();
         };
         
-        // Unlocking logic for P1 char (simpler)
-        const char = p1Char;
-        if (char === 'fire') {
-            unlockedDragons.ice = true;
+        // 通关简单或普通模式解锁所有角色
+        let newUnlocks = false;
+        DRAGONS.forEach(type => {
+            if (!unlockedDragons[type]) {
+                unlockedDragons[type] = true;
+                newUnlocks = true;
+            }
+        });
+        if (newUnlocks) {
             localStorage.setItem('dragon_unlocks', JSON.stringify(unlockedDragons));
-            showToast("NEW DRAGON UNLOCKED!", "❄️");
-        } else if (char === 'ice') {
-            unlockedDragons.poison = true;
-            localStorage.setItem('dragon_unlocks', JSON.stringify(unlockedDragons));
-            showToast("NEW DRAGON UNLOCKED!", "☠️");
+            showToast("所有角色已解锁!", "🐉");
         }
     }
 
@@ -2868,8 +2876,13 @@ const Game: React.FC = () => {
             if (isVisible(p.x, p.y)) {
                 const px = toScreenX(p.x);
                 const py = toScreenY(p.y);
-                // All pickups now render as treasure chest
+                // All pickups now render as treasure chest with glow effect
                 const chestImg = loadImage('/baoxiang.png');
+                // 动态发光效果 - 暗金色
+                const glowIntensity = 0.5 + 0.5 * Math.sin(frameCount * 0.1);
+                ctx.save();
+                ctx.shadowColor = '#886622';
+                ctx.shadowBlur = 8 + glowIntensity * 8;
                 if (chestImg) {
                     ctx.drawImage(chestImg, px, py, gridSize, gridSize);
                 } else {
@@ -2878,6 +2891,7 @@ const Game: React.FC = () => {
                     ctx.beginPath(); ctx.arc(px + gridSize/2, py + gridSize/2, 8, 0, Math.PI*2); ctx.fill();
                     ctx.fillStyle = '#fff'; ctx.font = '12px serif'; ctx.fillText('📦', px+2, py+14);
                 }
+                ctx.restore();
             }
         }
     
@@ -2896,6 +2910,11 @@ const Game: React.FC = () => {
                     ctx.fillStyle = '#111'; ctx.fillRect(cx - 4, cy + 6, 2, 3); ctx.fillRect(cx + 2, cy + 6, 2, 3);
                 } else if (item.type === 'wildfire') {
                     const xpImg = loadImage('/jingyan.png');
+                    // 动态发光效果 - 暗青色
+                    const glowIntensity = 0.5 + 0.5 * Math.sin(frameCount * 0.15 + item.x + item.y);
+                    ctx.save();
+                    ctx.shadowColor = '#226688';
+                    ctx.shadowBlur = 8 + glowIntensity * 8;
                     if (xpImg) {
                         ctx.drawImage(xpImg, px, py, gridSize, gridSize);
                     } else {
@@ -2911,6 +2930,7 @@ const Game: React.FC = () => {
                         ctx.moveTo(cx, cy - 2); ctx.lineTo(cx + 2, cy); ctx.lineTo(cx, cy + 2); ctx.lineTo(cx - 2, cy); 
                         ctx.fill();
                     }
+                    ctx.restore();
                 } else if (item.type === 'walker') {
                     // Use image for enemies based on floor
                     const enemyImgSrc = floor === 1 ? '/ren.png' : floor === 2 ? '/shou.png' : '/long.png';
@@ -3450,7 +3470,10 @@ const Game: React.FC = () => {
                         ? snakes[0].inputQueue[snakes[0].inputQueue.length - 1] 
                         : snakes[0].velocity;
                     if ((p1Dir.x !== 0 && lastVel.x === 0) || (p1Dir.y !== 0 && lastVel.y === 0)) {
-                        snakes[0].inputQueue.push(p1Dir);
+                        // 限制队列长度为2，防止积累过多输入导致自动转弯
+                        if (snakes[0].inputQueue.length < 2) {
+                            snakes[0].inputQueue.push(p1Dir);
+                        }
                     }
                 }
             }
@@ -3463,7 +3486,10 @@ const Game: React.FC = () => {
                         ? snakes[1].inputQueue[snakes[1].inputQueue.length - 1] 
                         : snakes[1].velocity;
                     if ((p2Dir.x !== 0 && lastVel.x === 0) || (p2Dir.y !== 0 && lastVel.y === 0)) {
-                        snakes[1].inputQueue.push(p2Dir);
+                        // 限制队列长度为2，防止积累过多输入导致自动转弯
+                        if (snakes[1].inputQueue.length < 2) {
+                            snakes[1].inputQueue.push(p2Dir);
+                        }
                     }
                  }
             }
@@ -3609,11 +3635,13 @@ const Game: React.FC = () => {
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
         }
         .char-card-mini img {
             width: 90px;
             height: 50px;
             object-fit: contain;
+            pointer-events: none;
         }
         .char-card-mini:hover { border-color: #888; }
         .char-card-mini.selected {
