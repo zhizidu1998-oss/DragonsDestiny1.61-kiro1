@@ -4,7 +4,20 @@ import React, { useEffect, useRef, useState } from 'react';
 const Game: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef(1);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [volume, setVolume] = useState(() => {
+    const saved = localStorage.getItem('game_volume');
+    return saved ? parseFloat(saved) : 0.5;
+  });
+  const [language, setLanguage] = useState<'zh' | 'en'>(() => {
+    const saved = localStorage.getItem('game_language');
+    return (saved === 'en' ? 'en' : 'zh') as 'zh' | 'en';
+  });
+  const [isElectron] = useState(() => !!(window as any).electron || navigator.userAgent.includes('Electron'));
+  const [scale, setScale] = useState(1);
 
   // Changelog Data
   const CHANGELOG = [
@@ -21,6 +34,623 @@ const Game: React.FC = () => {
       { date: "2025-11-27", ver: "v1.2", desc: "电浆连锁闪电；好学/贪婪/矿工平衡调整；速度撞击伤害机制；房间入口安全区。" },
       { date: "2025-11-26", ver: "v1.0", desc: "游戏初始发布。" }
   ];
+
+  // 多语言文本
+  const texts: Record<string, Record<string, string>> = {
+    zh: {
+      // 设置
+      settings: '设置',
+      volume: '音量',
+      language: '语言',
+      fullscreen: '全屏模式',
+      chinese: '中文',
+      english: 'English',
+      close: '关闭',
+      enterFullscreen: '进入全屏',
+      exitFullscreen: '退出全屏',
+      adjustVolume: '调节音量',
+      toggleLanguage: '切换语言',
+      toggleFullscreen: '切换全屏',
+      closeSettings: '关闭设置',
+      // 开始界面
+      clickToStart: '点击开始选择你的巨龙。',
+      startGame: '开始游戏',
+      changelog: '更新日志',
+      // 角色选择
+      selectDragon: '选择巨龙',
+      playerSelect: '玩家{0} 选择巨龙',
+      difficultyNormal: '难度: 普通',
+      difficultyEasy: '难度: 简单',
+      easyDesc: '(物资UP 敌人弱化)',
+      modeSingle: '模式: 单人',
+      modeCoop: '模式: 双人合作',
+      enterDungeon: '进入地牢',
+      confirmP1: '确认 (P1)',
+      testUnlockOn: '[测试] 全解锁: ON',
+      testUnlockOff: '[测试] 全解锁: OFF',
+      unlockHint: '通关简单模式可解锁',
+      notUnlocked: '该角色尚未解锁！',
+      // 角色
+      fireDragon: '烈焰魔龙',
+      iceDragon: '凛冬冰龙',
+      poisonDragon: '剧毒腐龙',
+      plasmaDragon: '电浆能量兽',
+      sideDragon: '海战巨鯨',
+      rapidDragon: '风暴迅猛兽',
+      heavyDragon: '炮火巨兽',
+      tripleDragon: '三头金蛇',
+      initialWeapon: '初始武器',
+      damageBonus: '伤害加成',
+      baseStats: '基础属性',
+      // 暂停
+      paused: '暂停',
+      resume: '继续游戏',
+      encyclopedia: '百科全书',
+      restart: '重新开始',
+      // 升级
+      bloodAwakening: '血脉觉醒',
+      selectEnhance: '← 选择一项强化 →',
+      // 游戏结束
+      youDied: '你死了',
+      journeyEnds: '你的征途结束了。',
+      floorReached: '到达层数',
+      finalScore: '最终得分',
+      awakenAgain: '再次觉醒',
+      // 胜利
+      victory: '胜利！',
+      conquered: '你征服了地牢！',
+      // 百科全书
+      encyclopediaTitle: '百科全书',
+      selectItem: '选择一个道具',
+      returnEsc: '返回 (ESC)',
+      // 提示
+      bossAppeared: 'BOSS出现了!',
+      bossDefeated: '{0} 被击败了!',
+      bagFull: '背包已满!',
+      allUnlocked: '所有角色已解锁!',
+      slimDone: '瘦身完成! 道具消失',
+      bodyShrink: '身体缩短!',
+      // 武器
+      weapon_classic: '龙息',
+      weapon_classic_desc: '标准的远程火球。',
+      weapon_classic_upg: '每级: 伤害+20%',
+      weapon_snowball: '雪球',
+      weapon_snowball_desc: '有几率冻结敌人。',
+      weapon_snowball_upg: '每级: 伤害+20%',
+      weapon_venom: '毒液',
+      weapon_venom_desc: '使敌人中毒持续掉血。',
+      weapon_venom_upg: '每级: 伤害+20%',
+      weapon_triple: '三头蛇',
+      weapon_triple_desc: '向三个方向发射子弹。',
+      weapon_triple_upg: '每级: 伤害+20%',
+      weapon_rapid: '风暴',
+      weapon_rapid_desc: '极快的射速。加成: 移速+10%。',
+      weapon_rapid_upg: '每级: 伤害+20%, 移速+10%',
+      weapon_heavy: '巨炮',
+      weapon_heavy_desc: '缓慢但造成大范围爆炸。能击碎墙壁。副作用: 移速降低。',
+      weapon_heavy_upg: '每级: 伤害+20%, 爆炸范围+1格',
+      weapon_side: '侧舷炮',
+      weapon_side_desc: '蛇身每隔一节向两侧开火。副作用: 降低主武器伤害。',
+      weapon_side_upg: '每级: 伤害+20%, 主武器-20%',
+      weapon_plasma: '电浆',
+      weapon_plasma_desc: '命中后连锁电击周围2格内的敌人。',
+      weapon_plasma_upg: '每级: 伤害+15%, 连锁范围+1格',
+      // 被动技能
+      passive_dmg: '龙牙',
+      passive_dmg_desc: '提高所有武器的伤害倍率。',
+      passive_dmg_upg: '每级: 伤害+20%',
+      passive_def: '铁鳞',
+      passive_def_desc: '减少受到的伤害。',
+      passive_def_upg: '每级: 减伤+1',
+      passive_hp: '龙心',
+      passive_hp_desc: '增加生命上限，并每5秒回复5%生命。',
+      passive_hp_upg: '每级: 生命+10, 回复效果增强',
+      passive_spd: '风翼',
+      passive_spd_desc: '增加子弹飞行速度与射速。',
+      passive_spd_upg: '每级: 速度+20%',
+      passive_magnet: '磁石',
+      passive_magnet_desc: '增加道具拾取范围。',
+      passive_magnet_upg: '每级: 范围+1.5格',
+      passive_berserk: '狂暴',
+      passive_berserk_desc: '生命值越低射速越快。',
+      passive_berserk_upg: '每级: 效果增强30%',
+      passive_devour: '贪婪',
+      passive_devour_desc: '吞噬敌人/羊时回复10%最大生命(5s冷却)，羊也提供经验。',
+      passive_devour_upg: '每级: 冷却-15%, 回血+10%, 经验+50%',
+      passive_bounce: '弹射',
+      passive_bounce_desc: '子弹在墙壁上反弹。',
+      passive_bounce_upg: '每级: 反弹次数+1',
+      passive_lucky: '幸运',
+      passive_lucky_desc: '增加箱子和墙壁掉落物品的几率。',
+      passive_lucky_upg: '每级: 掉率+10%',
+      passive_miner: '矿工',
+      passive_miner_desc: '破坏障碍物获得经验(0.25)。',
+      passive_miner_upg: '每级: 经验+0.25',
+      passive_learner: '好学',
+      passive_learner_desc: '增加获取的经验值。',
+      passive_learner_upg: '每级: 经验+30%',
+      passive_crit: '暴击',
+      passive_crit_desc: '攻击有几率造成双倍伤害。',
+      passive_crit_upg: '每级: 暴击率+10%',
+      passive_pierce: '穿透',
+      passive_pierce_desc: '子弹穿透敌人。穿透允许武器伤害墙壁(墙HP:50)。',
+      passive_pierce_upg: '每级: 穿透次数+1',
+      passive_diet: '瘦身',
+      passive_diet_desc: '龙不再变长，身体缩短。最小长度时道具消失。',
+      passive_diet_upg: '每级: 缩短身体',
+      passive_aim: '龙眼',
+      passive_aim_desc: '主武器指哪打哪。',
+      passive_aim_upg: '每级: 瞄准更精准',
+      passive_mist: '迷雾',
+      passive_mist_desc: '产生迷雾，敌人更难发现你(降低索敌范围)。',
+      passive_mist_upg: '每级: 索敌范围进一步降低',
+      // 升级卡片
+      newWeapon: '新武器',
+      newAbility: '新能力',
+      upgrade: '升级',
+      instantHeal: '即时回复',
+      healAll: '恢复所有生命值',
+      maxHeal: '治愈',
+      // Boss
+      bossWarning: '警告: BOSS来袭',
+      // HUD
+      floor: '层',
+      swipeToMove: '滑动移动',
+      // 百科全书详情
+      weaponCat: '武器',
+      passiveCat: '被动',
+      dmgLabel: '伤害',
+      rateLabel: '射速',
+      baseValue: '基础数值',
+      getItem: '获取 (+1)',
+      removeItem: '移除 (-1)',
+      upgradeEffect: '升级效果:',
+      testGot: '测试: 已获取',
+      testRemoved: '测试: 已移除',
+      upgraded: '升级!',
+      gotWeapon: '获得武器:',
+      gotPassive: '获得被动:',
+      baseDmg: '基础伤害',
+      currDmg: '当前伤害',
+      fireRate: '射速',
+      statLabel: '属性',
+      perLvLabel: '每级数值',
+      totalLabel: '当前总值',
+      allClear: '全部通关',
+      // 更新日志
+      changelogTitle: '更新日志',
+      // 暂停按钮
+      pauseHint: '暂停 (ESC/ENTER)',
+    },
+    en: {
+      // Settings
+      settings: 'Settings',
+      volume: 'Volume',
+      language: 'Language',
+      fullscreen: 'Fullscreen',
+      chinese: '中文',
+      english: 'English',
+      close: 'Close',
+      enterFullscreen: 'Enter Fullscreen',
+      exitFullscreen: 'Exit Fullscreen',
+      adjustVolume: 'Adjust Volume',
+      toggleLanguage: 'Toggle Language',
+      toggleFullscreen: 'Toggle Fullscreen',
+      closeSettings: 'Close Settings',
+      // Start screen
+      clickToStart: 'Click to select your dragon.',
+      startGame: 'Start Game',
+      changelog: 'Changelog',
+      // Character select
+      selectDragon: 'Select Dragon',
+      playerSelect: 'Player {0} Select Dragon',
+      difficultyNormal: 'Normal',
+      difficultyEasy: 'Easy',
+      easyDesc: '(More loot, weaker foes)',
+      modeSingle: 'Single',
+      modeCoop: 'Co-op',
+      enterDungeon: 'Enter Dungeon',
+      confirmP1: 'Confirm (P1)',
+      testUnlockOn: '[Test] Unlock: ON',
+      testUnlockOff: '[Test] Unlock: OFF',
+      unlockHint: 'Beat Easy to unlock',
+      notUnlocked: 'Not unlocked!',
+      // Characters
+      fireDragon: 'Inferno Dragon',
+      iceDragon: 'Frost Dragon',
+      poisonDragon: 'Venom Dragon',
+      plasmaDragon: 'Plasma Beast',
+      sideDragon: 'Sea Leviathan',
+      rapidDragon: 'Storm Beast',
+      heavyDragon: 'Artillery Beast',
+      tripleDragon: 'Hydra Snake',
+      initialWeapon: 'Weapon',
+      damageBonus: 'DMG Bonus',
+      baseStats: 'Base Stats',
+      // Pause
+      paused: 'Paused',
+      resume: 'Resume',
+      encyclopedia: 'Encyclopedia',
+      restart: 'Restart',
+      // Level up
+      bloodAwakening: 'Awakening',
+      selectEnhance: '← Select Enhancement →',
+      // Game over
+      youDied: 'You Died',
+      journeyEnds: 'Your journey has ended.',
+      floorReached: 'Floor',
+      finalScore: 'Score',
+      awakenAgain: 'Try Again',
+      // Victory
+      victory: 'Victory!',
+      conquered: 'Dungeon conquered!',
+      // Encyclopedia
+      encyclopediaTitle: 'Encyclopedia',
+      selectItem: 'Select an item',
+      returnEsc: 'Return (ESC)',
+      // Hints
+      bossAppeared: 'BOSS APPEARED!',
+      bossDefeated: '{0} DEFEATED!',
+      bagFull: 'Bag full!',
+      allUnlocked: 'All unlocked!',
+      slimDone: 'Slim done!',
+      bodyShrink: 'Body shrunk!',
+      // Weapons
+      weapon_classic: 'Fireball',
+      weapon_classic_desc: 'Standard ranged fireball.',
+      weapon_classic_upg: 'Per Lv: DMG +20%',
+      weapon_snowball: 'Snowball',
+      weapon_snowball_desc: 'Chance to freeze enemies.',
+      weapon_snowball_upg: 'Per Lv: DMG +20%',
+      weapon_venom: 'Venom',
+      weapon_venom_desc: 'Poisons enemies over time.',
+      weapon_venom_upg: 'Per Lv: DMG +20%',
+      weapon_triple: 'Trident',
+      weapon_triple_desc: 'Fires in 3 directions.',
+      weapon_triple_upg: 'Per Lv: DMG +20%',
+      weapon_rapid: 'Storm',
+      weapon_rapid_desc: 'Very fast fire rate. +10% speed.',
+      weapon_rapid_upg: 'Per Lv: DMG +20%, SPD +10%',
+      weapon_heavy: 'Cannon',
+      weapon_heavy_desc: 'Slow but huge AoE. Breaks walls. -Speed.',
+      weapon_heavy_upg: 'Per Lv: DMG +20%, AoE +1',
+      weapon_side: 'Broadside',
+      weapon_side_desc: 'Body fires sideways. -Main DMG.',
+      weapon_side_upg: 'Per Lv: DMG +20%, Main -20%',
+      weapon_plasma: 'Plasma',
+      weapon_plasma_desc: 'Chain lightning on hit.',
+      weapon_plasma_upg: 'Per Lv: DMG +15%, Range +1',
+      // Passives
+      passive_dmg: 'Dragon Fang',
+      passive_dmg_desc: 'Increases all weapon damage.',
+      passive_dmg_upg: 'Per Lv: DMG +20%',
+      passive_def: 'Iron Scale',
+      passive_def_desc: 'Reduces damage taken.',
+      passive_def_upg: 'Per Lv: DEF +1',
+      passive_hp: 'Dragon Heart',
+      passive_hp_desc: 'More HP, regen 5% every 5s.',
+      passive_hp_upg: 'Per Lv: HP +10, Regen up',
+      passive_spd: 'Wind Wing',
+      passive_spd_desc: 'Faster bullets and fire rate.',
+      passive_spd_upg: 'Per Lv: SPD +20%',
+      passive_magnet: 'Magnet',
+      passive_magnet_desc: 'Increases pickup range.',
+      passive_magnet_upg: 'Per Lv: Range +1.5',
+      passive_berserk: 'Berserk',
+      passive_berserk_desc: 'Lower HP = faster fire rate.',
+      passive_berserk_upg: 'Per Lv: Effect +30%',
+      passive_devour: 'Devour',
+      passive_devour_desc: 'Eat foes to heal 10% (5s CD).',
+      passive_devour_upg: 'Per Lv: CD -15%, Heal +10%',
+      passive_bounce: 'Bounce',
+      passive_bounce_desc: 'Bullets bounce off walls.',
+      passive_bounce_upg: 'Per Lv: Bounces +1',
+      passive_lucky: 'Lucky',
+      passive_lucky_desc: 'Better drop rates.',
+      passive_lucky_upg: 'Per Lv: Drop +10%',
+      passive_miner: 'Miner',
+      passive_miner_desc: 'Gain XP from obstacles.',
+      passive_miner_upg: 'Per Lv: XP +0.25',
+      passive_learner: 'Scholar',
+      passive_learner_desc: 'Gain more XP.',
+      passive_learner_upg: 'Per Lv: XP +30%',
+      passive_crit: 'Critical',
+      passive_crit_desc: 'Chance for double damage.',
+      passive_crit_upg: 'Per Lv: Crit +10%',
+      passive_pierce: 'Pierce',
+      passive_pierce_desc: 'Bullets pierce enemies & walls.',
+      passive_pierce_upg: 'Per Lv: Pierce +1',
+      passive_diet: 'Diet',
+      passive_diet_desc: 'No growth, body shrinks.',
+      passive_diet_upg: 'Per Lv: Shrink body',
+      passive_aim: 'Dragon Eye',
+      passive_aim_desc: 'Aim with mouse cursor.',
+      passive_aim_upg: 'Per Lv: Better aim',
+      passive_mist: 'Mist',
+      passive_mist_desc: 'Enemies detect you less.',
+      passive_mist_upg: 'Per Lv: Stealth up',
+      // Level up cards
+      newWeapon: 'New Weapon',
+      newAbility: 'New Ability',
+      upgrade: 'Upgrade',
+      instantHeal: 'Instant Heal',
+      healAll: 'Restore all HP',
+      maxHeal: 'Max Heal',
+      // Boss
+      bossWarning: 'WARNING: BOSS INCOMING',
+      // HUD
+      floor: 'FLOOR',
+      swipeToMove: 'Swipe to Move',
+      // Encyclopedia details
+      weaponCat: 'Weapon',
+      passiveCat: 'Passive',
+      dmgLabel: 'DMG',
+      rateLabel: 'Rate',
+      baseValue: 'Base Value',
+      getItem: 'Get (+1)',
+      removeItem: 'Remove (-1)',
+      upgradeEffect: 'Upgrade:',
+      testGot: 'Test: Got',
+      testRemoved: 'Test: Removed',
+      upgraded: 'Upgraded!',
+      gotWeapon: 'Got Weapon:',
+      gotPassive: 'Got Passive:',
+      baseDmg: 'Base DMG',
+      currDmg: 'Current DMG',
+      fireRate: 'Fire Rate',
+      statLabel: 'Stat',
+      perLvLabel: 'Per Lv',
+      totalLabel: 'Total',
+      allClear: 'ALL CLEAR',
+      // Changelog
+      changelogTitle: 'CHANGELOG',
+      // Pause button
+      pauseHint: 'Pause (ESC/ENTER)',
+    }
+  };
+  const t = texts[language];
+
+  // 设置界面状态
+  const [settingsIndex, setSettingsIndex] = useState(0);
+  // 选项：音量、语言、全屏（仅Electron）、关闭
+  const settingsOptions = React.useMemo(() => 
+    isElectron ? ['volume', 'language', 'fullscreen', 'close'] : ['volume', 'language', 'close'], 
+    [isElectron]
+  );
+  const settingsIndexRef = useRef(0);
+  
+  // 同步 ref 和 state
+  useEffect(() => {
+    settingsIndexRef.current = settingsIndex;
+  }, [settingsIndex]);
+
+  // 保存设置到 localStorage
+  useEffect(() => {
+    localStorage.setItem('game_volume', volume.toString());
+    (window as any).gameVolume = volume;
+  }, [volume]);
+
+  useEffect(() => {
+    localStorage.setItem('game_language', language);
+    // 暴露语言到 window 供游戏逻辑使用
+    (window as any).gameLanguage = language;
+    (window as any).getText = (key: string, ...args: any[]) => {
+      let text = texts[language][key] || texts['zh'][key] || key;
+      args.forEach((arg, i) => {
+        text = text.replace(`{${i}}`, arg);
+      });
+      return text;
+    };
+  }, [language]);
+
+  // 暴露 openSettings 到 window 供游戏逻辑调用
+  useEffect(() => {
+    // 记录打开设置时的语言
+    let languageOnOpen = language;
+    
+    (window as any).openSettings = () => {
+      languageOnOpen = (window as any).gameLanguage || 'zh';
+      setShowSettings(true);
+      setSettingsIndex(0);
+    };
+    (window as any).closeSettings = () => {
+      setShowSettings(false);
+      // 如果语言发生了变化，刷新页面以应用新语言
+      const currentLang = (window as any).gameLanguage || 'zh';
+      if (currentLang !== languageOnOpen) {
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
+      }
+    };
+    return () => { 
+      delete (window as any).openSettings; 
+      delete (window as any).closeSettings;
+    };
+  }, [language]);
+
+  // 设置界面键盘操作
+  useEffect(() => {
+    if (!showSettings) return;
+    
+    const handleSettingsInput = (e: KeyboardEvent) => {
+      // 忽略重复按键事件（按住不放时会持续触发）
+      if (e.repeat) return;
+      
+      const currentIdx = settingsIndexRef.current;
+      const optCount = settingsOptions.length;
+      const currentOpt = settingsOptions[currentIdx];
+      
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        const newIdx = (currentIdx - 1 + optCount) % optCount;
+        setSettingsIndex(newIdx);
+        e.preventDefault();
+      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+        const newIdx = (currentIdx + 1) % optCount;
+        setSettingsIndex(newIdx);
+        e.preventDefault();
+      } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        if (currentOpt === 'volume') {
+          setVolume(v => Math.max(0, Math.round((v - 0.1) * 10) / 10));
+        } else if (currentOpt === 'language') {
+          setLanguage('zh');
+        }
+        e.preventDefault();
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        if (currentOpt === 'volume') {
+          setVolume(v => Math.min(1, Math.round((v + 0.1) * 10) / 10));
+        } else if (currentOpt === 'language') {
+          setLanguage('en');
+        }
+        e.preventDefault();
+      } else if (e.key === 'Enter' || e.code === 'Space') {
+        if (currentOpt === 'fullscreen') {
+          toggleFullscreen();
+        } else if (currentOpt === 'language') {
+          setLanguage(l => l === 'zh' ? 'en' : 'zh');
+        } else if (currentOpt === 'close') {
+          (window as any).closeSettings?.();
+        }
+        e.preventDefault();
+      } else if (e.key === 'Escape') {
+        (window as any).closeSettings?.();
+        e.preventDefault();
+      }
+    };
+    
+    document.addEventListener('keydown', handleSettingsInput);
+    return () => document.removeEventListener('keydown', handleSettingsInput);
+  }, [showSettings, settingsOptions]);
+
+  // 设置界面手柄轮询 - 使用 useRef 保存状态避免闭包问题
+  const gamepadStateRef = useRef({
+    lastButtons: [] as boolean[],
+    lastDirection: null as string | null,
+    cooldownUntil: 0
+  });
+  
+  useEffect(() => {
+    if (!showSettings) return;
+    
+    const pollSettingsGamepad = () => {
+      const now = Date.now();
+      const state = gamepadStateRef.current;
+      
+      // 冷却检查
+      if (now < state.cooldownUntil) return;
+      
+      const gamepads = navigator.getGamepads();
+      const gp = gamepads[0] || gamepads[1] || gamepads[2] || gamepads[3];
+      if (!gp) return;
+      
+      const buttons = gp.buttons.map(b => b.pressed);
+      const axes = [...gp.axes];
+      
+      // 按钮边缘检测
+      const buttonPressed = (idx: number) => buttons[idx] && !state.lastButtons[idx];
+      
+      const ly = axes[1] || 0;
+      const lx = axes[0] || 0;
+      const deadzone = 0.5;
+      
+      // 计算当前方向
+      let currentDirection: string | null = null;
+      if (ly < -deadzone) currentDirection = 'up';
+      else if (ly > deadzone) currentDirection = 'down';
+      else if (lx < -deadzone) currentDirection = 'left';
+      else if (lx > deadzone) currentDirection = 'right';
+      
+      // 方向边缘检测：只在方向变化时触发
+      const directionChanged = currentDirection !== null && currentDirection !== state.lastDirection;
+      
+      const currentIdx = settingsIndexRef.current;
+      const optCount = settingsOptions.length;
+      const currentOpt = settingsOptions[currentIdx];
+      
+      let handled = false;
+      
+      // D-Pad 按钮或摇杆方向变化
+      if (buttonPressed(12) || (directionChanged && currentDirection === 'up')) {
+        const newIdx = (currentIdx - 1 + optCount) % optCount;
+        setSettingsIndex(newIdx);
+        handled = true;
+      } else if (buttonPressed(13) || (directionChanged && currentDirection === 'down')) {
+        const newIdx = (currentIdx + 1) % optCount;
+        setSettingsIndex(newIdx);
+        handled = true;
+      } else if (buttonPressed(14) || (directionChanged && currentDirection === 'left')) {
+        if (currentOpt === 'volume') {
+          setVolume(v => Math.max(0, Math.round((v - 0.1) * 10) / 10));
+        } else if (currentOpt === 'language') {
+          setLanguage('zh');
+        }
+        handled = true;
+      } else if (buttonPressed(15) || (directionChanged && currentDirection === 'right')) {
+        if (currentOpt === 'volume') {
+          setVolume(v => Math.min(1, Math.round((v + 0.1) * 10) / 10));
+        } else if (currentOpt === 'language') {
+          setLanguage('en');
+        }
+        handled = true;
+      } else if (buttonPressed(0)) { // A/X 确认
+        if (currentOpt === 'fullscreen') {
+          toggleFullscreen();
+        } else if (currentOpt === 'language') {
+          setLanguage(l => l === 'zh' ? 'en' : 'zh');
+        } else if (currentOpt === 'close') {
+          (window as any).closeSettings?.();
+        }
+        handled = true;
+      } else if (buttonPressed(1) || buttonPressed(9)) { // B/O or Start 返回
+        (window as any).closeSettings?.();
+        handled = true;
+      }
+      
+      if (handled) {
+        state.cooldownUntil = now + 200; // 200ms 冷却
+      }
+      
+      // 更新状态
+      state.lastButtons = [...buttons];
+      state.lastDirection = currentDirection;
+    };
+    
+    const intervalId = setInterval(pollSettingsGamepad, 16);
+    return () => clearInterval(intervalId);
+  }, [showSettings, settingsOptions]);
+
+  // 全屏切换
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  };
+
+  // 自动缩放以适配窗口
+  useEffect(() => {
+    const GAME_WIDTH = 600;
+    const GAME_HEIGHT = 730; // 包含道具槽的高度 660 + 70
+    
+    const updateScale = () => {
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+      
+      // 计算缩放比例，保持宽高比，留足够边距
+      const scaleX = (windowWidth - 40) / GAME_WIDTH;
+      const scaleY = (windowHeight - 40) / GAME_HEIGHT;
+      const newScale = Math.min(scaleX, scaleY, 1.8); // 最大放大1.8倍
+      
+      setScale(newScale);
+      scaleRef.current = newScale;
+      (window as any).gameScale = newScale;
+    };
+    
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
 
   useEffect(() => {
     // --- START OF GAME LOGIC ---
@@ -62,7 +692,8 @@ const Game: React.FC = () => {
     let devourTimer = 0;
     let invincibleTimer = 0;
     let regenTimer = 0; 
-    let difficulty = 'normal'; // 'normal' | 'easy'
+    let magnetGrowPending = 0; // 磁铁吸附食物时待增长的身体节数
+    let difficulty = 'easy'; // 'normal' | 'easy' - 默认简单模式
     let numPlayers = 1; // 1 or 2
 
     // UI State
@@ -85,15 +716,18 @@ const Game: React.FC = () => {
     let isTestMode = false;
     
     // 角色数据：名字、图片、初始武器、颜色、身体图片
+    // 使用 getText 获取翻译文本
+    const getText = (window as any).getText || ((key: string) => key);
+    
     const dragonData: any = {
-        fire: { name: '烈焰魔龙', img: '/shadow-dragon.png', weapon: 'CLASSIC', weaponName: '龙息', desc: '标准的远程火球' },
-        ice: { name: '凛冬冰龙', img: '/void-dragon.png', weapon: 'SNOWBALL', weaponName: '雪球', desc: '有几率冻结敌人' },
-        poison: { name: '剧毒腐龙', img: '/thunder-dragon.png', weapon: 'VENOM', weaponName: '毒液', desc: '使敌人中毒持续掉血' },
-        plasma: { name: '电浆能量兽', img: '/earth-dragon.png', weapon: 'PLASMA', weaponName: '电浆', desc: '命中后连锁电击敌人' },
-        side: { name: '海战巨鯨', img: '/light-dragon.png', weapon: 'SIDE', weaponName: '侧舷炮', desc: '蛇身向两侧开火' },
-        rapid: { name: '风暴迅猛兽', img: '/wind-dragon.png', weapon: 'RAPID', weaponName: '风暴', desc: '极快的射速' },
-        heavy: { name: '炮火巨兽', img: '/water-dragon.png', weapon: 'HEAVY', weaponName: '巨炮', desc: '大范围爆炸伤害' },
-        triple: { name: '三头金蛇', img: '/metal-dragon.png', weapon: 'TRIPLE', weaponName: '三头蛇', desc: '向三个方向发射子弹' }
+        fire: { nameKey: 'fireDragon', img: '/shadow-dragon.png', weapon: 'CLASSIC', weaponKey: 'weapon_classic', descKey: 'weapon_classic_desc' },
+        ice: { nameKey: 'iceDragon', img: '/void-dragon.png', weapon: 'SNOWBALL', weaponKey: 'weapon_snowball', descKey: 'weapon_snowball_desc' },
+        poison: { nameKey: 'poisonDragon', img: '/thunder-dragon.png', weapon: 'VENOM', weaponKey: 'weapon_venom', descKey: 'weapon_venom_desc' },
+        plasma: { nameKey: 'plasmaDragon', img: '/earth-dragon.png', weapon: 'PLASMA', weaponKey: 'weapon_plasma', descKey: 'weapon_plasma_desc' },
+        side: { nameKey: 'sideDragon', img: '/light-dragon.png', weapon: 'SIDE', weaponKey: 'weapon_side', descKey: 'weapon_side_desc' },
+        rapid: { nameKey: 'rapidDragon', img: '/wind-dragon.png', weapon: 'RAPID', weaponKey: 'weapon_rapid', descKey: 'weapon_rapid_desc' },
+        heavy: { nameKey: 'heavyDragon', img: '/water-dragon.png', weapon: 'HEAVY', weaponKey: 'weapon_heavy', descKey: 'weapon_heavy_desc' },
+        triple: { nameKey: 'tripleDragon', img: '/metal-dragon.png', weapon: 'TRIPLE', weaponKey: 'weapon_triple', descKey: 'weapon_triple_desc' }
     };
     
     const dragonStats: any = {
@@ -141,35 +775,35 @@ const Game: React.FC = () => {
     let currentHp = 100;
     let frameCount = 0;
 
-    // Definitions (WEAPONS & PASSIVES remain same)
+    // Definitions (WEAPONS & PASSIVES with translation keys)
     const WEAPONS: any = {
-        CLASSIC: { id: 'classic', name: "龙息", rate: 40, damage: 15, speed: 0.75, type: 'classic', icon: '🔥', img: '/classic.png', color: '#ff5500', desc: "标准的远程火球。", upg: "每级: 伤害+20%" }, 
-        SNOWBALL: { id: 'snowball', name: "雪球", rate: 30, damage: 12, speed: 1.0, type: 'snowball', icon: '❄️', img: '/snowball.png', color: '#4da6ff', desc: "有几率冻结敌人。", upg: "每级: 伤害+20%" },
-        VENOM:    { id: 'venom', name: "毒液", rate: 40, damage: 8, speed: 0.75, type: 'venom', icon: '🤢', img: '/venom.png', color: '#00ff00', desc: "使敌人中毒持续掉血。", upg: "每级: 伤害+20%" },
-        TRIPLE:  { id: 'triple', name: "三头蛇",  rate: 60, damage: 10, speed: 0.5, type: 'triple', icon: '🔱', img: '/triple.png', color: '#00ffaa', desc: "向三个方向发射子弹。", upg: "每级: 伤害+20%" }, 
-        RAPID:   { id: 'rapid', name: "风暴",   rate: 24, damage: 5,  speed: 1.25, type: 'rapid', icon: '⚡', img: '/rapid.png', color: '#ffff00', desc: "极快的射速。加成: 移速+10%。", upg: "每级: 伤害+20%, 移速+10%" }, 
-        HEAVY:   { id: 'heavy', name: "巨炮",   rate: 120, damage: 50, speed: 0.5, type: 'heavy', icon: '💣', img: '/heavy.png', color: '#ff0000', desc: "缓慢但造成大范围爆炸。能击碎墙壁。副作用: 移速降低。", upg: "每级: 伤害+20%, 爆炸范围+1格" },
-        SIDE:     { id: 'side', name: "侧舷炮", rate: 60, damage: 4, speed: 0.5, type: 'side', icon: '⚓', img: '/side.png', color: '#777777', desc: "蛇身每隔一节向两侧开火。副作用: 降低主武器伤害。", upg: "每级: 伤害+20%, 主武器-20%" },
-        PLASMA:   { id: 'plasma', name: "电浆", rate: 24, damage: 12, speed: 1.25, type: 'plasma', icon: '🌀', img: '/plasma.png', color: '#00ffff', desc: "命中后连锁电击周围2格内的敌人。", upg: "每级: 伤害+15%, 连锁范围+1格" },
+        CLASSIC: { id: 'classic', nameKey: 'weapon_classic', rate: 40, damage: 15, speed: 0.75, type: 'classic', icon: '🔥', img: '/classic.png', color: '#ff5500', descKey: 'weapon_classic_desc', upgKey: 'weapon_classic_upg' }, 
+        SNOWBALL: { id: 'snowball', nameKey: 'weapon_snowball', rate: 30, damage: 12, speed: 1.0, type: 'snowball', icon: '❄️', img: '/snowball.png', color: '#4da6ff', descKey: 'weapon_snowball_desc', upgKey: 'weapon_snowball_upg' },
+        VENOM:    { id: 'venom', nameKey: 'weapon_venom', rate: 40, damage: 8, speed: 0.75, type: 'venom', icon: '🤢', img: '/venom.png', color: '#00ff00', descKey: 'weapon_venom_desc', upgKey: 'weapon_venom_upg' },
+        TRIPLE:  { id: 'triple', nameKey: 'weapon_triple',  rate: 60, damage: 10, speed: 0.5, type: 'triple', icon: '🔱', img: '/triple.png', color: '#00ffaa', descKey: 'weapon_triple_desc', upgKey: 'weapon_triple_upg' }, 
+        RAPID:   { id: 'rapid', nameKey: 'weapon_rapid',   rate: 24, damage: 5,  speed: 1.25, type: 'rapid', icon: '⚡', img: '/rapid.png', color: '#ffff00', descKey: 'weapon_rapid_desc', upgKey: 'weapon_rapid_upg' }, 
+        HEAVY:   { id: 'heavy', nameKey: 'weapon_heavy',   rate: 120, damage: 50, speed: 0.5, type: 'heavy', icon: '💣', img: '/heavy.png', color: '#ff0000', descKey: 'weapon_heavy_desc', upgKey: 'weapon_heavy_upg' },
+        SIDE:     { id: 'side', nameKey: 'weapon_side', rate: 60, damage: 4, speed: 0.5, type: 'side', icon: '⚓', img: '/side.png', color: '#777777', descKey: 'weapon_side_desc', upgKey: 'weapon_side_upg' },
+        PLASMA:   { id: 'plasma', nameKey: 'weapon_plasma', rate: 24, damage: 12, speed: 1.25, type: 'plasma', icon: '🌀', img: '/plasma.png', color: '#00ffff', descKey: 'weapon_plasma_desc', upgKey: 'weapon_plasma_upg' },
     };
 
     const PASSIVES: any[] = [
-        { id: 'dmg', name: '龙牙', stat: 'damagePercent', val: 0.2, icon: '⚔️', img: '/dmg.png', desc: '提高所有武器的伤害倍率。', upg: '每级: 伤害+20%' },
-        { id: 'def', name: '铁鳞', stat: 'defense', val: 1, icon: '🛡️', img: '/def.png', desc: '减少受到的伤害。', upg: '每级: 减伤+1' },
-        { id: 'hp',  name: '龙心', stat: 'hpBonus', val: 10, icon: '❤️', img: '/hp.png', desc: '增加生命上限，并每5秒回复5%生命。', upg: '每级: 生命+10, 回复效果增强' },
-        { id: 'spd', name: '风翼', stat: 'speedMod', val: 0.2, icon: '⏩', img: '/spd.png', desc: '增加子弹飞行速度与射速。', upg: '每级: 速度+20%' },
-        { id: 'magnet', name: '磁石', stat: 'pickupRange', val: 1, icon: '🧲', img: '/magnet.png', desc: '增加道具拾取范围。', upg: '每级: 范围+1.5格' },
-        { id: 'berserk', name: '狂暴', stat: 'berserk', val: 0.3, icon: '🩸', img: '/berserk.png', desc: '生命值越低射速越快。', upg: '每级: 效果增强30%' },
-        { id: 'devour', name: '贪婪', stat: 'devour', val: 1, icon: '🦖', img: '/devour.png', desc: '吞噬敌人/羊时回复10%最大生命(5s冷却)，羊也提供经验。', upg: '每级: 冷却-15%, 回血+10%, 经验+50%' },
-        { id: 'bounce', name: '弹射', stat: 'bounce', val: 1, icon: '🏀', img: '/bounce.png', desc: '子弹在墙壁上反弹。', upg: '每级: 反弹次数+1' },
-        { id: 'lucky', name: '幸运', stat: 'lucky', val: 0.1, icon: '🍀', img: '/lucky.png', desc: '增加箱子和墙壁掉落物品的几率。', upg: '每级: 掉率+10%' },
-        { id: 'miner', name: '矿工', stat: 'miner', val: 0.25, icon: '⛏️', img: '/miner.png', desc: '破坏障碍物获得经验(0.25)。', upg: '每级: 经验+0.25' },
-        { id: 'learner', name: '好学', stat: 'learner', val: 0.3, icon: '🎓', img: '/learner.png', desc: '增加获取的经验值。', upg: '每级: 经验+30%' },
-        { id: 'crit', name: '暴击', stat: 'crit', val: 0.1, icon: '🎯', img: '/crit.png', desc: '攻击有几率造成双倍伤害。', upg: '每级: 暴击率+10%' },
-        { id: 'pierce', name: '穿透', stat: 'pierce', val: 1, icon: '🪓', img: '/pierce.png', desc: '子弹穿透敌人。穿透允许武器伤害墙壁(墙HP:50)。', upg: '每级: 穿透次数+1' },
-        { id: 'diet', name: '瘦身', stat: 'diet', val: 1, icon: '🥒', img: '/diet.png', desc: '龙不再变长，身体缩短。最小长度时道具消失。', upg: '每级: 缩短身体' },
-        { id: 'aim', name: '龙眼', stat: 'mouseAim', val: 1, icon: '👁️', img: '/aim.png', desc: '主武器指哪打哪。', upg: '每级: 瞄准更精准' },
-        { id: 'mist', name: '迷雾', stat: 'stealth', val: 3, icon: '🌫️', img: '/mist.png', desc: '产生迷雾，敌人更难发现你(降低索敌范围)。', upg: '每级: 索敌范围进一步降低' }
+        { id: 'dmg', nameKey: 'passive_dmg', stat: 'damagePercent', val: 0.2, icon: '⚔️', img: '/dmg.png', descKey: 'passive_dmg_desc', upgKey: 'passive_dmg_upg' },
+        { id: 'def', nameKey: 'passive_def', stat: 'defense', val: 1, icon: '🛡️', img: '/def.png', descKey: 'passive_def_desc', upgKey: 'passive_def_upg' },
+        { id: 'hp',  nameKey: 'passive_hp', stat: 'hpBonus', val: 10, icon: '❤️', img: '/hp.png', descKey: 'passive_hp_desc', upgKey: 'passive_hp_upg' },
+        { id: 'spd', nameKey: 'passive_spd', stat: 'speedMod', val: 0.2, icon: '⏩', img: '/spd.png', descKey: 'passive_spd_desc', upgKey: 'passive_spd_upg' },
+        { id: 'magnet', nameKey: 'passive_magnet', stat: 'pickupRange', val: 1, icon: '🧲', img: '/magnet.png', descKey: 'passive_magnet_desc', upgKey: 'passive_magnet_upg' },
+        { id: 'berserk', nameKey: 'passive_berserk', stat: 'berserk', val: 0.3, icon: '🩸', img: '/berserk.png', descKey: 'passive_berserk_desc', upgKey: 'passive_berserk_upg' },
+        { id: 'devour', nameKey: 'passive_devour', stat: 'devour', val: 1, icon: '🦖', img: '/devour.png', descKey: 'passive_devour_desc', upgKey: 'passive_devour_upg' },
+        { id: 'bounce', nameKey: 'passive_bounce', stat: 'bounce', val: 1, icon: '🏀', img: '/bounce.png', descKey: 'passive_bounce_desc', upgKey: 'passive_bounce_upg' },
+        { id: 'lucky', nameKey: 'passive_lucky', stat: 'lucky', val: 0.1, icon: '🍀', img: '/lucky.png', descKey: 'passive_lucky_desc', upgKey: 'passive_lucky_upg' },
+        { id: 'miner', nameKey: 'passive_miner', stat: 'miner', val: 0.25, icon: '⛏️', img: '/miner.png', descKey: 'passive_miner_desc', upgKey: 'passive_miner_upg' },
+        { id: 'learner', nameKey: 'passive_learner', stat: 'learner', val: 0.3, icon: '🎓', img: '/learner.png', descKey: 'passive_learner_desc', upgKey: 'passive_learner_upg' },
+        { id: 'crit', nameKey: 'passive_crit', stat: 'crit', val: 0.1, icon: '🎯', img: '/crit.png', descKey: 'passive_crit_desc', upgKey: 'passive_crit_upg' },
+        { id: 'pierce', nameKey: 'passive_pierce', stat: 'pierce', val: 1, icon: '🪓', img: '/pierce.png', descKey: 'passive_pierce_desc', upgKey: 'passive_pierce_upg' },
+        { id: 'diet', nameKey: 'passive_diet', stat: 'diet', val: 1, icon: '🥒', img: '/diet.png', descKey: 'passive_diet_desc', upgKey: 'passive_diet_upg' },
+        { id: 'aim', nameKey: 'passive_aim', stat: 'mouseAim', val: 1, icon: '👁️', img: '/aim.png', descKey: 'passive_aim_desc', upgKey: 'passive_aim_upg' },
+        { id: 'mist', nameKey: 'passive_mist', stat: 'stealth', val: 3, icon: '🌫️', img: '/mist.png', descKey: 'passive_mist_desc', upgKey: 'passive_mist_upg' }
     ];
 
     let weaponInventory: any[] = []; 
@@ -178,7 +812,10 @@ const Game: React.FC = () => {
     // Helper function to render icon (image or emoji)
     const renderIcon = (item: any, size: number = 24) => {
         if (item.img) {
-            return `<img src="${item.img}" alt="${item.name}" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;" />`;
+            // 将绝对路径 /xxx.png 转换为相对路径 ./xxx.png
+            const imgSrc = item.img.startsWith('/') ? '.' + item.img : item.img;
+            const itemName = item.nameKey ? getText(item.nameKey) : (item.name || '');
+            return `<img src="${imgSrc}" alt="${itemName}" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;" />`;
         }
         return item.icon;
     };
@@ -186,12 +823,14 @@ const Game: React.FC = () => {
     // Image cache for canvas rendering
     const imageCache: Record<string, HTMLImageElement> = {};
     const loadImage = (src: string): HTMLImageElement | null => {
-        if (!imageCache[src]) {
+        // 将绝对路径 /xxx.png 转换为相对路径 ./xxx.png
+        const normalizedSrc = src.startsWith('/') ? '.' + src : src;
+        if (!imageCache[normalizedSrc]) {
             const img = new Image();
-            img.src = src;
-            imageCache[src] = img;
+            img.src = normalizedSrc;
+            imageCache[normalizedSrc] = img;
         }
-        return imageCache[src].complete ? imageCache[src] : null;
+        return imageCache[normalizedSrc].complete ? imageCache[normalizedSrc] : null;
     };
 
     // Colors
@@ -225,6 +864,10 @@ const Game: React.FC = () => {
             if (!this.ctx) this.init();
             if (this.ctx!.state === 'suspended') this.ctx!.resume();
             
+            // 获取全局音量设置
+            const globalVolume = (window as any).gameVolume ?? 0.5;
+            const finalVolMult = volMult * globalVolume;
+            
             const now = this.ctx!.currentTime;
             const osc = this.ctx!.createOscillator();
             const gain = this.ctx!.createGain();
@@ -234,73 +877,73 @@ const Game: React.FC = () => {
             switch(type) {
                 case 'uiSelect': 
                     osc.type = 'square'; osc.frequency.setValueAtTime(440, now); osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
-                    gain.gain.setValueAtTime(0.1 * volMult, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                    gain.gain.setValueAtTime(0.1 * finalVolMult, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
                     osc.start(now); osc.stop(now + 0.1); break;
                 case 'uiConfirm': 
                     osc.type = 'square'; osc.frequency.setValueAtTime(880, now); osc.frequency.exponentialRampToValueAtTime(1760, now + 0.1);
-                    gain.gain.setValueAtTime(0.1 * volMult, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                    gain.gain.setValueAtTime(0.1 * finalVolMult, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
                     osc.start(now); osc.stop(now + 0.2); break;
                 case 'shoot': 
                     osc.type = 'square'; osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(150, now + 0.15);
-                    gain.gain.setValueAtTime(0.05 * volMult, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                    gain.gain.setValueAtTime(0.05 * finalVolMult, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
                     osc.start(now); osc.stop(now + 0.15); break;
                 case 'shoot_heavy': 
                     osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(50, now + 0.3);
-                    gain.gain.setValueAtTime(0.1 * volMult, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    gain.gain.setValueAtTime(0.1 * finalVolMult, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
                     osc.start(now); osc.stop(now + 0.3); break;
                 case 'shoot_rapid': 
                     osc.type = 'triangle'; osc.frequency.setValueAtTime(800, now); osc.frequency.linearRampToValueAtTime(1200, now + 0.05);
-                    gain.gain.setValueAtTime(0.05 * volMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.05);
+                    gain.gain.setValueAtTime(0.05 * finalVolMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.05);
                     osc.start(now); osc.stop(now + 0.05); break;
                 case 'shoot_shotgun': 
                     osc.type = 'sawtooth'; osc.frequency.setValueAtTime(400, now); osc.frequency.linearRampToValueAtTime(200, now + 0.15);
-                    gain.gain.setValueAtTime(0.08 * volMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.15);
+                    gain.gain.setValueAtTime(0.08 * finalVolMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.15);
                     osc.start(now); osc.stop(now + 0.15); break;
                 case 'shoot_side': 
                     osc.type = 'square'; osc.frequency.setValueAtTime(500, now); osc.frequency.setValueAtTime(700, now + 0.05);
-                    gain.gain.setValueAtTime(0.05 * volMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                    gain.gain.setValueAtTime(0.05 * finalVolMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
                     osc.start(now); osc.stop(now + 0.1); break;
                 case 'shoot_ice': 
                     osc.type = 'sine'; osc.frequency.setValueAtTime(1500, now); osc.frequency.exponentialRampToValueAtTime(2000, now + 0.1);
-                    gain.gain.setValueAtTime(0.1 * volMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                    gain.gain.setValueAtTime(0.1 * finalVolMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
                     osc.start(now); osc.stop(now + 0.1); break;
                 case 'shoot_venom': 
                     osc.type = 'triangle'; osc.frequency.setValueAtTime(300, now); osc.frequency.linearRampToValueAtTime(200, now + 0.15);
-                    gain.gain.setValueAtTime(0.08 * volMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.15);
+                    gain.gain.setValueAtTime(0.08 * finalVolMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.15);
                     osc.start(now); osc.stop(now + 0.15); break;
                 case 'hit': 
                     osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.linearRampToValueAtTime(50, now + 0.1);
-                    gain.gain.setValueAtTime(0.1 * volMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                    gain.gain.setValueAtTime(0.1 * finalVolMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
                     osc.start(now); osc.stop(now + 0.1); break;
                 case 'pickup': 
                     osc.type = 'sine'; osc.frequency.setValueAtTime(1200, now); osc.frequency.setValueAtTime(1600, now + 0.05);
-                    gain.gain.setValueAtTime(0.1 * volMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.15);
+                    gain.gain.setValueAtTime(0.1 * finalVolMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.15);
                     osc.start(now); osc.stop(now + 0.15); break;
                 case 'explode': 
                     osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, now); osc.frequency.exponentialRampToValueAtTime(10, now + 0.3);
-                    gain.gain.setValueAtTime(0.2 * volMult, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    gain.gain.setValueAtTime(0.2 * finalVolMult, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
                     osc.start(now); osc.stop(now + 0.3); break;
                 case 'levelup': 
-                    this.playNote(523.25, now, 0.1); this.playNote(659.25, now+0.1, 0.1); this.playNote(783.99, now+0.2, 0.1); this.playNote(1046.50, now+0.3, 0.3); break;
+                    this.playNote(523.25, now, 0.1, finalVolMult * 0.06); this.playNote(659.25, now+0.1, 0.1, finalVolMult * 0.06); this.playNote(783.99, now+0.2, 0.1, finalVolMult * 0.06); this.playNote(1046.50, now+0.3, 0.3, finalVolMult * 0.06); break;
                 case 'gameover': 
                     osc.type = 'triangle'; osc.frequency.setValueAtTime(400, now); osc.frequency.linearRampToValueAtTime(100, now + 1.0);
-                    gain.gain.setValueAtTime(0.2 * volMult, now); gain.gain.linearRampToValueAtTime(0, now + 1.0);
+                    gain.gain.setValueAtTime(0.2 * finalVolMult, now); gain.gain.linearRampToValueAtTime(0, now + 1.0);
                     osc.start(now); osc.stop(now + 1.0); break;
                 case 'eat': 
                     osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, now); osc.frequency.linearRampToValueAtTime(50, now + 0.1);
-                    gain.gain.setValueAtTime(0.3 * volMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.2);
+                    gain.gain.setValueAtTime(0.3 * finalVolMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.2);
                     osc.start(now); osc.stop(now + 0.2); break;
                 case 'zap': 
                     osc.type = 'sawtooth'; osc.frequency.setValueAtTime(2000, now); osc.frequency.linearRampToValueAtTime(500, now + 0.1);
-                    gain.gain.setValueAtTime(0.1 * volMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                    gain.gain.setValueAtTime(0.1 * finalVolMult, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
                     osc.start(now); osc.stop(now + 0.1); break;
             }
         },
-        playNote: function(freq: number, time: number, dur: number) {
+        playNote: function(freq: number, time: number, dur: number, vol: number = 0.1) {
             const osc = this.ctx!.createOscillator(); const gain = this.ctx!.createGain();
             osc.connect(gain); gain.connect(this.ctx!.destination);
             osc.type = 'square'; osc.frequency.setValueAtTime(freq, time);
-            gain.gain.setValueAtTime(0.1, time); gain.gain.linearRampToValueAtTime(0, time + dur);
+            gain.gain.setValueAtTime(vol, time); gain.gain.linearRampToValueAtTime(0, time + dur);
             osc.start(time); osc.stop(time + dur);
         }
     };
@@ -321,6 +964,49 @@ const Game: React.FC = () => {
         // 初始时隐藏道具栏
         const invPanel = document.getElementById('inventory-panel');
         if(invPanel) invPanel.style.display = 'none';
+        
+        // 启动独立的手柄轮询循环（在游戏循环之外也能工作）
+        startGamepadPolling();
+        
+        // 定义全局刷新UI函数，供语言切换后调用
+        const refreshGameUI = () => {
+            // 根据当前UI状态刷新对应界面
+            if (uiState === 'start') {
+                // 开始界面的文本由 React 渲染，不需要手动刷新
+            } else if (uiState === 'char_select') {
+                refreshCharCards();
+                updateCharDetail(selectingPlayer === 1 ? p1Char : p2Char);
+            } else if (uiState === 'paused') {
+                updatePauseMenu();
+            } else if (uiState === 'playing') {
+                // 游戏中不需要刷新太多，但可以刷新道具栏
+            } else if (uiState === 'levelup') {
+                renderLevelUpCards();
+            } else if (uiState === 'encyclopedia') {
+                renderWikiGrid();
+                updateWikiDetails();
+            } else if (uiState === 'gameover') {
+                // 游戏结束界面由 React 渲染
+            }
+            // 刷新道具栏
+            updateInventoryUI();
+        };
+        
+        // 监听语言切换事件
+        window.addEventListener('languageChanged', refreshGameUI);
+    }
+    
+    // 独立的手柄轮询循环
+    let gamepadPollingId: number | null = null;
+    function startGamepadPolling() {
+        function pollLoop() {
+            // 只在非游戏状态或暂停时处理手柄（游戏中由 loop 处理）
+            if (uiState !== 'playing') {
+                handleGamepadInput();
+            }
+            gamepadPollingId = requestAnimationFrame(pollLoop);
+        }
+        pollLoop();
     }
 
     // --- GAME LOGIC FUNCTIONS ---
@@ -330,7 +1016,7 @@ const Game: React.FC = () => {
         isTestMode = !isTestMode;
         const btn = document.getElementById('unlock-toggle');
         if(btn) {
-            btn.innerText = isTestMode ? "[测试] 全解锁: ON" : "[测试] 全解锁: OFF";
+            btn.innerText = isTestMode ? getText('testUnlockOn') : getText('testUnlockOff');
             btn.classList.toggle('active', isTestMode);
         }
         refreshCharCards();
@@ -379,7 +1065,7 @@ const Game: React.FC = () => {
                     if (!unlockedDragons[type] && !isTestMode) {
                         const msg = document.getElementById('lock-msg');
                         if(msg) {
-                            msg.innerText = "通关简单模式可解锁";
+                            msg.innerText = getText('unlockHint');
                             setTimeout(() => msg.innerText = "", 2000);
                         }
                         return;
@@ -402,31 +1088,61 @@ const Game: React.FC = () => {
         const descEl = document.getElementById('char-detail-desc');
         const statsEl = document.getElementById('char-detail-stats');
         
-        if(imgEl) imgEl.src = data.img;
-        if(previewImg1) previewImg1.src = data.img;
-        if(previewImg2) previewImg2.src = data.img;
-        if(nameEl) nameEl.innerText = data.name;
-        if(weaponEl) weaponEl.innerHTML = `初始武器: <span style="color:#aaa">${data.weaponName}</span>`;
-        if(descEl) descEl.innerText = data.desc;
+        const lang = (window as any).gameLanguage || 'zh';
+        const isEn = lang === 'en';
+        
+        // 获取翻译后的文本
+        const charName = getText(data.nameKey);
+        const weaponName = getText(data.weaponKey);
+        const charDesc = getText(data.descKey);
+        
+        if(imgEl) imgEl.src = data.img.startsWith('/') ? '.' + data.img : data.img;
+        if(previewImg1) previewImg1.src = data.img.startsWith('/') ? '.' + data.img : data.img;
+        if(previewImg2) previewImg2.src = data.img.startsWith('/') ? '.' + data.img : data.img;
+        if(nameEl) {
+            nameEl.innerText = charName;
+            // 英文版使用更小的字体
+            nameEl.style.fontSize = isEn ? '28px' : '36px';
+            nameEl.style.letterSpacing = isEn ? '0.05em' : '0.1em';
+        }
+        if(weaponEl) {
+            const weaponLabel = getText('initialWeapon');
+            weaponEl.innerHTML = `${weaponLabel}: <span style="color:#aaa">${weaponName}</span>`;
+            weaponEl.style.fontSize = isEn ? '18px' : '24px';
+        }
+        if(descEl) {
+            descEl.innerText = charDesc;
+            descEl.style.fontSize = isEn ? '16px' : '20px';
+        }
         if(statsEl) {
-            const dmgBonus = stats.dmgMod !== 1.0 ? `伤害加成: ${stats.dmgMod > 1 ? '+' : ''}${Math.round((stats.dmgMod - 1) * 100)}%` : '';
-            statsEl.innerText = dmgBonus || '基础属性';
+            const dmgLabel = getText('damageBonus');
+            const baseLabel = getText('baseStats');
+            const dmgBonus = stats.dmgMod !== 1.0 ? `${dmgLabel}: ${stats.dmgMod > 1 ? '+' : ''}${Math.round((stats.dmgMod - 1) * 100)}%` : '';
+            statsEl.innerText = dmgBonus || baseLabel;
+            statsEl.style.fontSize = isEn ? '14px' : '18px';
         }
     }
     
     function refreshCharCards() {
         // Use current picking dragon for display logic
+        // charSelectRow: 0=角色卡片, 1=难度/模式, 2=设置, 3=进入地牢, 4=测试
         const currentChar = selectingPlayer === 1 ? p1Char : p2Char;
         dragonMenuIndex = DRAGONS.indexOf(currentChar);
 
+        const lang = (window as any).gameLanguage || 'zh';
+        const isEn = lang === 'en';
+
         const title = document.getElementById('char-select-title');
         if (title) {
-            if (numPlayers === 1) title.innerText = "选择巨龙";
-            else title.innerText = `玩家${selectingPlayer} 选择巨龙`;
+            if (numPlayers === 1) title.innerText = getText('selectDragon');
+            else title.innerText = getText('playerSelect', selectingPlayer);
             
             // Highlight P2 specific text color
             if(selectingPlayer === 2) title.style.color = '#00ccff';
             else title.style.color = '#b30000';
+            
+            // 英文版字体调整
+            title.style.fontSize = isEn ? '14px' : '16px';
         }
 
         DRAGONS.forEach((type, idx) => {
@@ -451,46 +1167,78 @@ const Game: React.FC = () => {
         const diffBtn = document.getElementById('btn-difficulty');
         if(diffBtn) {
             diffBtn.className = 'btn';
+            const normalText = getText('difficultyNormal');
+            const easyText = getText('difficultyEasy');
+            const easyDesc = getText('easyDesc');
             diffBtn.innerHTML = difficulty === 'normal' 
-                ? '难度: 普通' 
-                : '难度: 简单 <span style="font-size:8px; display:block;">(物资UP 敌人弱化)</span>';
-            diffBtn.style.color = difficulty === 'normal' ? '#fff' : '#0f0';
-            if(difficulty === 'easy') diffBtn.style.borderColor = '#0f0';
+                ? normalText 
+                : `${easyText} <span style="font-size:8px; display:block;">${easyDesc}</span>`;
+            // 简单模式白色，普通模式绿色
+            diffBtn.style.color = difficulty === 'normal' ? '#0f0' : '#fff';
+            if(difficulty === 'normal') diffBtn.style.borderColor = '#0f0';
             else diffBtn.style.borderColor = '#500';
             
-            // 当在难度/模式行且焦点在难度时高亮
-            if (charSelectRow === 1 && optionCol === 0) diffBtn.classList.add('selected-btn');
+            // 普通模式时高亮，或者当键盘导航到此按钮时高亮
+            if (difficulty === 'normal' || (charSelectRow === 1 && optionCol === 0)) {
+                diffBtn.classList.add('selected-btn');
+            }
             diffBtn.onclick = toggleDifficulty;
+            
+            // 英文版字体调整，中文放大30%
+            diffBtn.style.fontSize = isEn ? '10px' : '16px';
         }
 
         // Mode Button
         const modeBtn = document.getElementById('btn-mode');
         if(modeBtn) {
             modeBtn.className = 'btn';
-            modeBtn.innerHTML = numPlayers === 1 ? '模式: 单人' : '模式: 双人合作';
+            const singleText = getText('modeSingle');
+            const coopText = getText('modeCoop');
+            modeBtn.innerHTML = numPlayers === 1 ? singleText : coopText;
             modeBtn.style.color = numPlayers === 1 ? '#fff' : '#00ccff';
             if(numPlayers === 2) modeBtn.style.borderColor = '#00558b';
             else modeBtn.style.borderColor = '#500';
 
-            // 当在难度/模式行且焦点在模式时高亮
-            if (charSelectRow === 1 && optionCol === 1) modeBtn.classList.add('selected-btn');
+            // 双人模式时高亮，或者当键盘导航到此按钮时高亮
+            if (numPlayers === 2 || (charSelectRow === 1 && optionCol === 1)) {
+                modeBtn.classList.add('selected-btn');
+            }
             modeBtn.onclick = toggleGameMode;
+            
+            // 英文版字体调整，中文放大30%
+            modeBtn.style.fontSize = isEn ? '10px' : '16px';
+        }
+        
+        // Settings Button
+        const settingsBtn = document.getElementById('btn-char-settings');
+        if(settingsBtn) {
+            settingsBtn.className = 'btn mb-[6px]';
+            if (charSelectRow === 2) settingsBtn.classList.add('selected-btn');
+            settingsBtn.onclick = () => { (window as any).openSettings?.(); };
+            settingsBtn.innerHTML = `⚙️ ${getText('settings')}`;
+            settingsBtn.style.fontSize = isEn ? '10px' : '16px';
         }
         
         // Confirm Button
         const confirmBtn = document.getElementById('btn-confirm-char');
         if(confirmBtn) {
             confirmBtn.className = 'btn';
-            if (charSelectRow === 2) confirmBtn.classList.add('selected-btn');
-            confirmBtn.innerText = (numPlayers === 2 && selectingPlayer === 1) ? "确认 (P1)" : "进入地牢";
+            if (charSelectRow === 3) confirmBtn.classList.add('selected-btn');
+            const confirmP1Text = getText('confirmP1');
+            const enterText = getText('enterDungeon');
+            confirmBtn.innerText = (numPlayers === 2 && selectingPlayer === 1) ? confirmP1Text : enterText;
             confirmBtn.onclick = confirmChar;
+            
+            // 英文版字体调整，中文放大30%
+            confirmBtn.style.fontSize = isEn ? '14px' : '20px';
         }
         
         const toggleBtn = document.getElementById('unlock-toggle');
         if(toggleBtn) {
-            if (charSelectRow === 3) toggleBtn.classList.add('selected-nav');
+            if (charSelectRow === 4) toggleBtn.classList.add('selected-nav');
             else toggleBtn.classList.remove('selected-nav');
             toggleBtn.onclick = toggleTestMode;
+            toggleBtn.innerText = isTestMode ? getText('testUnlockOn') : getText('testUnlockOff');
         }
     }
 
@@ -507,7 +1255,7 @@ const Game: React.FC = () => {
         if (!unlockedDragons[currentChar] && !isTestMode) {
             const msg = document.getElementById('lock-msg');
             if(msg) {
-                msg.innerText = "该角色尚未解锁！";
+                msg.innerText = getText('notUnlocked');
                 setTimeout(() => msg.innerText = "", 2000);
             }
             return;
@@ -542,37 +1290,63 @@ const Game: React.FC = () => {
             uiState = 'playing';
             document.getElementById('pause-screen')?.classList.add('hidden');
             SoundSystem.play('uiConfirm');
-            loop();
+            // loop 已经在运行，只需要设置 isPaused = false
         } else if (!isPaused && uiState === 'playing') {
             isPaused = true;
             uiState = 'paused';
             pauseMenuIndex = 0;
             updatePauseMenu();
             document.getElementById('pause-screen')?.classList.remove('hidden');
-            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            // 不停止 loop，让它继续运行以处理手柄输入
             SoundSystem.play('uiSelect');
         }
     }
 
     function updatePauseMenu() {
-        const btns = ['btn-resume', 'btn-wiki', 'btn-restart'];
+        const btns = ['btn-resume', 'btn-settings', 'btn-wiki', 'btn-restart'];
+        const lang = (window as any).gameLanguage || 'zh';
+        const isEn = lang === 'en';
+        
+        // 更新暂停标题
+        const pauseTitle = document.querySelector('#pause-screen h1');
+        if (pauseTitle) {
+            pauseTitle.textContent = getText('paused');
+        }
+        
         btns.forEach((id, idx) => {
             const btn = document.getElementById(id);
             if (btn) {
                 if (idx === pauseMenuIndex) btn.classList.add('selected-btn');
                 else btn.classList.remove('selected-btn');
                 
-                if(id === 'btn-resume') btn.onclick = togglePause;
-                if(id === 'btn-wiki') btn.onclick = openEncyclopedia;
-                if(id === 'btn-restart') btn.onclick = restartFromPause;
+                if(id === 'btn-resume') {
+                    btn.onclick = togglePause;
+                    btn.textContent = getText('resume');
+                }
+                if(id === 'btn-settings') {
+                    btn.onclick = () => { (window as any).openSettings?.(); };
+                    btn.textContent = getText('settings');
+                }
+                if(id === 'btn-wiki') {
+                    btn.onclick = openEncyclopedia;
+                    btn.textContent = getText('encyclopedia');
+                }
+                if(id === 'btn-restart') {
+                    btn.onclick = restartFromPause;
+                    btn.textContent = getText('restart');
+                }
+                
+                // 英文版字体调整
+                btn.style.fontSize = isEn ? '14px' : '16px';
             }
         });
     }
 
     function confirmPauseAction() {
         if (pauseMenuIndex === 0) togglePause(); 
-        else if (pauseMenuIndex === 1) openEncyclopedia(); 
-        else if (pauseMenuIndex === 2) restartFromPause(); 
+        else if (pauseMenuIndex === 1) { (window as any).openSettings?.(); }
+        else if (pauseMenuIndex === 2) openEncyclopedia(); 
+        else if (pauseMenuIndex === 3) restartFromPause(); 
     }
 
     function restartFromPause() {
@@ -657,24 +1431,40 @@ const Game: React.FC = () => {
         const stats = document.getElementById('wiki-stats');
         const upgrade = document.getElementById('wiki-upgrade');
 
-        const catName = item.cat === 'WEAPON' ? '武器' : '被动';
-        if(title) title.innerHTML = `<div style="display:flex; align-items:center; gap:15px; margin-bottom:10px;"><div style="flex:1;"><div style="font-size:20px; color:#d4af37;">${item.name}</div><div style="font-size:12px; color:#666;">${catName}</div></div><div>${renderIcon(item, 80)}</div></div>`;
+        const lang = (window as any).gameLanguage || 'zh';
+        const isEn = lang === 'en';
+        const catName = item.cat === 'WEAPON' ? getText('weaponCat') : getText('passiveCat');
+        const itemName = item.nameKey ? getText(item.nameKey) : item.name;
+        const itemDesc = item.descKey ? getText(item.descKey) : item.desc;
+        const itemUpg = item.upgKey ? getText(item.upgKey) : item.upg;
         
-        let statHtml = `<div class="stat-label">${item.desc}</div>`;
+        // 英文版使用更小的字体
+        const titleSize = isEn ? '16px' : '20px';
+        const descSize = isEn ? '13px' : '14px';
+        
+        if(title) title.innerHTML = `<div style="display:flex; align-items:center; gap:15px; margin-bottom:10px;"><div style="flex:1;"><div style="font-size:${titleSize}; color:#d4af37;">${itemName}</div><div style="font-size:12px; color:#666;">${catName}</div></div><div>${renderIcon(item, 80)}</div></div>`;
+        
+        let statHtml = `<div class="stat-label" style="font-size:${descSize};">${itemDesc}</div>`;
         if (item.cat === 'WEAPON') {
-            statHtml += `<div class="stat-label">伤害: ${item.damage} | 射速: ${(60/item.rate).toFixed(1)}/秒</div>`;
+            const dmgLabel = getText('dmgLabel');
+            const rateLabel = getText('rateLabel');
+            statHtml += `<div class="stat-label" style="font-size:${descSize};">${dmgLabel}: ${item.damage} | ${rateLabel}: ${(60/item.rate).toFixed(1)}/s</div>`;
         } else {
-            statHtml += `<div class="stat-label">基础数值: ${item.val}</div>`;
+            const baseLabel = getText('baseValue');
+            statHtml += `<div class="stat-label" style="font-size:${descSize};">${baseLabel}: ${item.val}</div>`;
         }
         if(stats) stats.innerHTML = statHtml;
         
+        const getLabel = getText('getItem');
+        const removeLabel = getText('removeItem');
+        const upgLabel = getText('upgradeEffect');
         const testBtnHtml = `<div style="margin-top:10px; border-top:1px dashed #333; padding-top:10px; display:flex; flex-direction:column; gap:5px;">
-            <button id="btn-wiki-cheat" class="btn" style="flex:1; height:30px; width:100%; font-size:10px; padding:0; background:#444;">获取 (+1)</button>
-            <button id="btn-wiki-remove" class="btn" style="flex:1; height:30px; width:100%; font-size:10px; padding:0; background:#400;">移除 (-1)</button>
+            <button id="btn-wiki-cheat" class="btn" style="flex:1; height:30px; width:100%; font-size:10px; padding:0; background:#444;">${getLabel}</button>
+            <button id="btn-wiki-remove" class="btn" style="flex:1; height:30px; width:100%; font-size:10px; padding:0; background:#400;">${removeLabel}</button>
         </div>`;
         
         if(upgrade) {
-            upgrade.innerHTML = `<span style="color:#aaa;">升级效果:</span><br><span style="color:#0f0;">${item.upg}</span> ${testBtnHtml}`;
+            upgrade.innerHTML = `<span style="color:#aaa; font-size:${descSize};">${upgLabel}</span><br><span style="color:#0f0; font-size:${descSize};">${itemUpg}</span> ${testBtnHtml}`;
             
             const btn = document.getElementById('btn-wiki-cheat');
             if(btn) {
@@ -682,7 +1472,8 @@ const Game: React.FC = () => {
                     const pickupType = item.cat === 'WEAPON' ? 'weapon' : 'passive';
                     tryPickup({ type: pickupType, data: item });
                     updateInventoryUI();
-                    showToast(`测试: 已获取 ${item.name}`, item);
+                    const testLabel = getText('testGot');
+                    showToast(`${testLabel} ${itemName}`, item);
                 };
             }
             const rmBtn = document.getElementById('btn-wiki-remove');
@@ -690,7 +1481,8 @@ const Game: React.FC = () => {
                 rmBtn.onclick = () => {
                     removeItemStack(item.id, item.cat === 'WEAPON');
                     updateInventoryUI();
-                    showToast(`测试: 已移除 ${item.name}`, "🗑️");
+                    const testLabel = getText('testRemoved');
+                    showToast(`${testLabel} ${itemName}`, "🗑️");
                 };
             }
         }
@@ -747,6 +1539,8 @@ const Game: React.FC = () => {
         devourTimer = 0;
         invincibleTimer = 0;
         regenTimer = 0;
+        magnetGrowPending = 0;
+        frameCount = 0; // 重置帧计数器
         
         weaponInventory = [];
         passiveInventory = [];
@@ -1173,10 +1967,287 @@ const Game: React.FC = () => {
         return false;
     }
 
+    // ========== 手柄支持 ==========
+    let gamepadState = {
+        lastButtons: [] as boolean[],
+        lastAxes: [0, 0, 0, 0],
+        axisDeadzone: 0.5,
+        inputCooldown: 0
+    };
+
+    function pollGamepad() {
+        const gamepads = navigator.getGamepads();
+        const gp = gamepads[0] || gamepads[1] || gamepads[2] || gamepads[3];
+        if (!gp) return null;
+
+        const buttons = gp.buttons.map(b => b.pressed);
+        const axes = [...gp.axes];
+        
+        // 检测按钮按下（边缘触发）
+        const buttonPressed = (idx: number) => {
+            return buttons[idx] && !gamepadState.lastButtons[idx];
+        };
+        
+        // 检测方向（带死区）
+        const getDirection = () => {
+            // 左摇杆
+            const lx = axes[0] || 0;
+            const ly = axes[1] || 0;
+            // D-Pad (按钮 12-15 或 axes)
+            const dpadUp = buttons[12];
+            const dpadDown = buttons[13];
+            const dpadLeft = buttons[14];
+            const dpadRight = buttons[15];
+            
+            if (dpadUp || ly < -gamepadState.axisDeadzone) return 'up';
+            if (dpadDown || ly > gamepadState.axisDeadzone) return 'down';
+            if (dpadLeft || lx < -gamepadState.axisDeadzone) return 'left';
+            if (dpadRight || lx > gamepadState.axisDeadzone) return 'right';
+            return null;
+        };
+        
+        // Xbox: A=0, B=1, X=2, Y=3, LB=4, RB=5, Back=8, Start=9
+        // PS5:  X=0, O=1, □=2, △=3, L1=4, R1=5, Share=8, Options=9
+        const result = {
+            confirm: buttonPressed(0), // A / X
+            cancel: buttonPressed(1),  // B / O
+            start: buttonPressed(9),   // Start / Options
+            direction: getDirection(),
+            directionChanged: false
+        };
+        
+        // 检测方向变化（用于菜单导航）
+        const prevDir = (() => {
+            const plx = gamepadState.lastAxes[0] || 0;
+            const ply = gamepadState.lastAxes[1] || 0;
+            const pdpadUp = gamepadState.lastButtons[12];
+            const pdpadDown = gamepadState.lastButtons[13];
+            const pdpadLeft = gamepadState.lastButtons[14];
+            const pdpadRight = gamepadState.lastButtons[15];
+            
+            if (pdpadUp || ply < -gamepadState.axisDeadzone) return 'up';
+            if (pdpadDown || ply > gamepadState.axisDeadzone) return 'down';
+            if (pdpadLeft || plx < -gamepadState.axisDeadzone) return 'left';
+            if (pdpadRight || plx > gamepadState.axisDeadzone) return 'right';
+            return null;
+        })();
+        
+        result.directionChanged = result.direction !== prevDir && result.direction !== null;
+        
+        // 更新状态
+        gamepadState.lastButtons = buttons;
+        gamepadState.lastAxes = axes;
+        
+        return result;
+    }
+
+    function handleGamepadInput() {
+        if (gamepadState.inputCooldown > 0) {
+            gamepadState.inputCooldown--;
+            return;
+        }
+        
+        const input = pollGamepad();
+        if (!input) return;
+        
+        const setCooldown = (frames: number = 8) => { gamepadState.inputCooldown = frames; };
+        
+        // 开始界面
+        if (uiState === 'start') {
+            if (input.confirm || input.start) {
+                goToCharSelect();
+                setCooldown();
+            }
+            return;
+        }
+        
+        // 角色选择界面
+        if (uiState === 'char_select') {
+            if (input.directionChanged) {
+                if (input.direction === 'up') {
+                    if (charSelectRow === 0 && dragonMenuIndex >= 4) {
+                        dragonMenuIndex -= 4;
+                        setChar(DRAGONS[dragonMenuIndex]);
+                    } else if (charSelectRow > 0) {
+                        charSelectRow--;
+                        if (charSelectRow === 0) dragonMenuIndex = Math.min(dragonMenuIndex, 3) + 4;
+                    }
+                } else if (input.direction === 'down') {
+                    if (charSelectRow === 0 && dragonMenuIndex < 4) {
+                        dragonMenuIndex += 4;
+                        if (dragonMenuIndex >= DRAGONS.length) dragonMenuIndex = DRAGONS.length - 1;
+                        setChar(DRAGONS[dragonMenuIndex]);
+                    } else if (charSelectRow === 0 && dragonMenuIndex >= 4) {
+                        charSelectRow = 1;
+                    } else if (charSelectRow < 4) {
+                        charSelectRow++;
+                    }
+                } else if (input.direction === 'left') {
+                    if (charSelectRow === 0 && dragonMenuIndex % 4 > 0) {
+                        dragonMenuIndex--;
+                        setChar(DRAGONS[dragonMenuIndex]);
+                    } else if (charSelectRow === 1) {
+                        optionCol = 0;
+                    }
+                } else if (input.direction === 'right') {
+                    if (charSelectRow === 0 && dragonMenuIndex % 4 < 3 && dragonMenuIndex < DRAGONS.length - 1) {
+                        dragonMenuIndex++;
+                        setChar(DRAGONS[dragonMenuIndex]);
+                    } else if (charSelectRow === 1) {
+                        optionCol = 1;
+                    }
+                }
+                refreshCharCards();
+                SoundSystem.play('uiSelect');
+                setCooldown();
+            }
+            if (input.confirm) {
+                // charSelectRow: 0=角色卡片, 1=难度/模式, 2=设置, 3=进入地牢, 4=测试
+                if (charSelectRow === 0) {
+                    charSelectRow = 3; // 跳到进入地牢按钮
+                } else if (charSelectRow === 1) {
+                    if (optionCol === 0) toggleDifficulty();
+                    else toggleGameMode();
+                } else if (charSelectRow === 2) {
+                    (window as any).openSettings?.();
+                } else if (charSelectRow === 3) {
+                    confirmChar();
+                } else if (charSelectRow === 4) {
+                    toggleTestMode();
+                }
+                refreshCharCards();
+                setCooldown();
+            }
+            if (input.cancel) {
+                // 返回开始界面
+                document.getElementById('char-select-screen')?.classList.add('hidden');
+                document.getElementById('start-screen')?.classList.remove('hidden');
+                uiState = 'start';
+                setCooldown();
+            }
+            return;
+        }
+        
+        // 游戏中
+        if (uiState === 'playing') {
+            if (input.start) {
+                togglePause();
+                setCooldown();
+                return;
+            }
+            // 移动控制
+            if (input.direction && snakes[0]) {
+                const lastVel = snakes[0].inputQueue.length > 0 
+                    ? snakes[0].inputQueue[snakes[0].inputQueue.length - 1] 
+                    : snakes[0].velocity;
+                
+                if (input.direction === 'up' && lastVel.y === 0) {
+                    if (snakes[0].inputQueue.length < 2) snakes[0].inputQueue.push({x: 0, y: -1});
+                } else if (input.direction === 'down' && lastVel.y === 0) {
+                    if (snakes[0].inputQueue.length < 2) snakes[0].inputQueue.push({x: 0, y: 1});
+                } else if (input.direction === 'left' && lastVel.x === 0) {
+                    if (snakes[0].inputQueue.length < 2) snakes[0].inputQueue.push({x: -1, y: 0});
+                } else if (input.direction === 'right' && lastVel.x === 0) {
+                    if (snakes[0].inputQueue.length < 2) snakes[0].inputQueue.push({x: 1, y: 0});
+                }
+            }
+            return;
+        }
+        
+        // 暂停界面
+        if (uiState === 'paused') {
+            if (input.directionChanged) {
+                if (input.direction === 'up') {
+                    pauseMenuIndex = (pauseMenuIndex - 1 + 4) % 4;
+                    updatePauseMenu();
+                    SoundSystem.play('uiSelect');
+                } else if (input.direction === 'down') {
+                    pauseMenuIndex = (pauseMenuIndex + 1) % 4;
+                    updatePauseMenu();
+                    SoundSystem.play('uiSelect');
+                }
+                setCooldown();
+            }
+            if (input.confirm) {
+                confirmPauseAction();
+                setCooldown();
+            }
+            if (input.cancel || input.start) {
+                togglePause();
+                setCooldown();
+            }
+            return;
+        }
+        
+        // 升级选择界面
+        if (uiState === 'levelup') {
+            if (input.directionChanged) {
+                if (input.direction === 'left') {
+                    selectedRewardIndex = (selectedRewardIndex - 1 + levelUpChoices.length) % levelUpChoices.length;
+                    renderLevelUpCards();
+                    SoundSystem.play('uiSelect');
+                } else if (input.direction === 'right') {
+                    selectedRewardIndex = (selectedRewardIndex + 1) % levelUpChoices.length;
+                    renderLevelUpCards();
+                    SoundSystem.play('uiSelect');
+                }
+                setCooldown();
+            }
+            if (input.confirm) {
+                selectLevelUpReward(levelUpChoices[selectedRewardIndex]);
+                setCooldown();
+            }
+            return;
+        }
+        
+        // 百科全书
+        if (uiState === 'encyclopedia') {
+            if (input.directionChanged) {
+                if (input.direction === 'right') {
+                    wikiIndex = (wikiIndex + 1) % wikiItems.length;
+                } else if (input.direction === 'left') {
+                    wikiIndex = (wikiIndex - 1 + wikiItems.length) % wikiItems.length;
+                } else if (input.direction === 'down') {
+                    wikiIndex = (wikiIndex + 4) % wikiItems.length;
+                } else if (input.direction === 'up') {
+                    wikiIndex = (wikiIndex - 4 + wikiItems.length) % wikiItems.length;
+                }
+                renderWikiGrid();
+                updateWikiDetails();
+                SoundSystem.play('uiSelect');
+                setCooldown();
+            }
+            if (input.cancel) {
+                closeEncyclopedia();
+                setCooldown();
+            }
+            return;
+        }
+        
+        // 游戏结束界面
+        if (uiState === 'gameover') {
+            if (input.confirm) {
+                const invPanel = document.getElementById('inventory-panel');
+                if(invPanel) invPanel.style.display = 'none';
+                goToCharSelect();
+                setCooldown();
+            }
+            return;
+        }
+    }
+
     function loop() {
-        if (isPaused) return; 
+        if (isPaused) {
+            // 暂停时也轮询手柄
+            handleGamepadInput();
+            gameLoopId = requestAnimationFrame(loop);
+            return;
+        }
         gameLoopId = requestAnimationFrame(loop);
         frameCount++;
+        
+        // 轮询手柄输入
+        handleGamepadInput();
 
         // Heavy Cannon Movement Penalty
         let speedVal = 8 - Math.floor(level / 5);
@@ -1288,12 +2359,14 @@ const Game: React.FC = () => {
                                 }
                                 currentHp = Math.min(maxHp, currentHp + healAmount);
                                 score += 10; consumed = true;
+                                magnetGrowPending++; // 磁铁吸附食物时身体增长
                                 createParticles(closestHead.x, closestHead.y, '#f00', 5);
                                 SoundSystem.play('pickup');
                              } else if (item.type === 'wildfire') {
                                 const learnerBonus = 1 + getPassiveTotal('learner');
                                 gainXp(2 * learnerBonus);
                                 score += 25; consumed = true;
+                                magnetGrowPending++; // 磁铁吸附食物时身体增长
                                 createParticles(closestHead.x, closestHead.y, C_FOOD_WILDFIRE, 8); 
                                 SoundSystem.play('pickup');
                              }
@@ -1434,7 +2507,7 @@ const Game: React.FC = () => {
                             const bossName = document.getElementById('boss-name');
                             if(bossName) bossName.innerText = boss.name;
                             createParticles(boss.x, boss.y, boss.color, 50);
-                            showToast("BOSS APPEARED!", "☠️");
+                            showToast(getText('bossAppeared'), "☠️", true);
                             SoundSystem.play('uiConfirm');
                         }
                     }
@@ -1668,12 +2741,11 @@ const Game: React.FC = () => {
             snake.body.unshift(head);
             
             let shouldPop = true;
-            if (ate || globalGrew) shouldPop = false; // Shared growth? Or individual? "Simultaneously enjoy item effects" -> maybe specific food is individual, but upgrades are shared. For Snake gameplay, eating usually grows ONLY the eater.
-            // Wait, globalGrew was set if ANY snake ate. If we want shared growth, leave it. If individual, use local 'ate'.
-            // Let's use local 'ate' for food growth, but 'globalGrew' logic was set by pickups? 
-            // Actually 'handleItemCollision' returns true for food.
-            // Let's make growth individual to avoid desync in lengths too much.
-            
+            // 磁铁吸附食物时的身体增长
+            if (magnetGrowPending > 0) {
+                magnetGrowPending--;
+                shouldPop = false;
+            }
             if (ate) shouldPop = false;
 
             const dietStack = getPassiveStack('diet');
@@ -1684,7 +2756,7 @@ const Game: React.FC = () => {
                     // Only remove diet if BOTH are short? Or just remove once.
                     // Let's remove if triggered.
                     removeItemStack('diet', false);
-                    showToast("瘦身完成! 道具消失", "✨");
+                    showToast(getText('slimDone'), "✨");
                     updateInventoryUI();
                 }
             }
@@ -1710,33 +2782,39 @@ const Game: React.FC = () => {
             return true;
         } else if (p.type === 'weapon') {
             const existing = weaponInventory.find(w => w.id === p.data.id);
+            const itemName = p.data.nameKey ? getText(p.data.nameKey) : p.data.name;
             if (existing) {
                 existing.stack++;
-                showToast(`${p.data.name} 升级! (x${existing.stack})`, p.data);
+                const upgText = getText('upgraded');
+                showToast(`${itemName} ${upgText} (x${existing.stack})`, p.data);
                 SoundSystem.play('pickup');
             } else {
                 if (weaponInventory.length >= MAX_SLOTS) {
-                    showToast("背包已满!", "🚫");
+                    showToast(getText('bagFull'), "🚫", true);
                     return false;
                 }
                 addWeapon(p.data);
-                showToast(`获得武器: ${p.data.name}`, p.data);
+                const gotText = getText('gotWeapon');
+                showToast(`${gotText} ${itemName}`, p.data);
                 SoundSystem.play('pickup');
             }
         } else if (p.type === 'passive') {
             const existing = passiveInventory.find(pass => pass.id === p.data.id);
+            const itemName = p.data.nameKey ? getText(p.data.nameKey) : p.data.name;
             if (existing) {
                 existing.stack++;
                 applyPassiveStack(existing);
-                showToast(`${p.data.name} 升级! (x${existing.stack})`, p.data);
+                const upgText = getText('upgraded');
+                showToast(`${itemName} ${upgText} (x${existing.stack})`, p.data);
                 SoundSystem.play('pickup');
             } else {
                 if (passiveInventory.length >= MAX_SLOTS) {
-                    showToast("背包已满!", "🚫");
+                    showToast(getText('bagFull'), "🚫", true);
                     return false;
                 }
                 addPassive(p.data);
-                showToast(`获得被动: ${p.data.name}`, p.data);
+                const gotText = getText('gotPassive');
+                showToast(`${gotText} ${itemName}`, p.data);
                 SoundSystem.play('pickup');
             }
         }
@@ -1765,11 +2843,14 @@ const Game: React.FC = () => {
                     s.body.pop();
                 }
             });
-            showToast("身体缩短!", "🥒");
+            showToast(getText('bodyShrink'), "🥒");
         }
     }
 
-    function showToast(text: string, iconOrItem: string | any) {
+    function showToast(text: string, iconOrItem: string | any, important: boolean = false) {
+        // 只显示重要提示（BOSS相关、背包已满等）
+        if (!important) return;
+        
         const el = document.getElementById('toast');
         if (el) {
             // Check if it's an item with img property
@@ -1783,13 +2864,23 @@ const Game: React.FC = () => {
     }
     
     const getStatLabel = (stat: string) => {
-        const map: any = {
+        const lang = (window as any).gameLanguage || 'zh';
+        const isEn = lang === 'en';
+        const mapZh: any = {
             damagePercent: '伤害加成', defense: '防御力', hpBonus: '生命上限',
             speedMod: '攻速/移速', pickupRange: '拾取范围', berserk: '狂暴效果',
             devour: '吞噬能力', bounce: '反弹次数', lucky: '幸运值',
             miner: '挖掘经验', learner: '经验加成', crit: '暴击率',
             pierce: '穿透次数', diet: '瘦身效果', mouseAim: '鼠标瞄准', stealth: '潜行等级'
         };
+        const mapEn: any = {
+            damagePercent: 'DMG Bonus', defense: 'Defense', hpBonus: 'Max HP',
+            speedMod: 'ATK/Move SPD', pickupRange: 'Pickup Range', berserk: 'Berserk',
+            devour: 'Devour', bounce: 'Bounces', lucky: 'Luck',
+            miner: 'Mining XP', learner: 'XP Bonus', crit: 'Crit Rate',
+            pierce: 'Pierce', diet: 'Diet', mouseAim: 'Mouse Aim', stealth: 'Stealth'
+        };
+        const map = isEn ? mapEn : mapZh;
         return map[stat] || stat;
     };
 
@@ -1798,6 +2889,9 @@ const Game: React.FC = () => {
         const pContainer = document.getElementById('inv-passives');
         if(!wContainer || !pContainer) return;
         const tooltip = document.getElementById('inv-tooltip');
+        
+        const lang = (window as any).gameLanguage || 'zh';
+        const isEn = lang === 'en';
 
         const createSlot = (item: any) => {
             const div = document.createElement('div');
@@ -1805,8 +2899,32 @@ const Game: React.FC = () => {
             if (item) {
                 div.innerHTML = `${renderIcon(item, 36)}<span class="inv-count">${item.stack > 1 ? 'x'+item.stack : ''}</span>`;
                 div.classList.add('filled');
+                div.style.cursor = 'pointer';
+                
+                // 点击道具槽时，如果在百科全书模式，同步高亮
+                div.onclick = () => {
+                    if (uiState === 'encyclopedia' || uiState === 'paused') {
+                        // 查找该道具在 wikiItems 中的索引
+                        const idx = wikiItems.findIndex((w: any) => w.id === item.id);
+                        if (idx !== -1) {
+                            // 如果不在百科全书模式，先打开
+                            if (uiState === 'paused') {
+                                openEncyclopedia();
+                            }
+                            wikiIndex = idx;
+                            renderWikiGrid();
+                            updateWikiDetails();
+                            SoundSystem.play('uiSelect');
+                        }
+                    }
+                };
+                
                 div.onmouseenter = (e) => {
                     if(tooltip) {
+                        // 获取翻译后的名称和描述
+                        const itemName = item.nameKey ? getText(item.nameKey) : item.name;
+                        const itemDesc = item.descKey ? getText(item.descKey) : item.desc;
+                        
                         let stats = "";
                         if (item.type !== undefined) { 
                             const weaponStackMult = 1 + 0.2 * (item.stack - 1);
@@ -1818,20 +2936,26 @@ const Game: React.FC = () => {
                             const fireRate = Math.max(5, item.rate - (speedMod * 10));
                             const shotsPerSec = (60/fireRate).toFixed(1);
 
-                            stats += `<div>基础伤害: ${item.damage}</div>`;
-                            stats += `<div style="color:#0ff">当前伤害: ${Math.floor(baseDmg)}</div>`;
-                            stats += `<div>射速: ${shotsPerSec}/秒</div>`;
+                            const baseDmgLabel = getText('baseDmg');
+                            const currDmgLabel = getText('currDmg');
+                            const rateLabel = getText('fireRate');
+                            stats += `<div>${baseDmgLabel}: ${item.damage}</div>`;
+                            stats += `<div style="color:#0ff">${currDmgLabel}: ${Math.floor(baseDmg)}</div>`;
+                            stats += `<div>${rateLabel}: ${shotsPerSec}/s</div>`;
                         } else { 
                             const label = getStatLabel(item.stat);
-                            stats += `<div>属性: ${label}</div>`;
-                            stats += `<div>每级数值: ${item.val}</div>`;
-                            stats += `<div style="color:#0ff">当前总值: ${Number((item.val * item.stack).toFixed(2))}</div>`;
+                            const attrLabel = getText('statLabel');
+                            const perLvLabel = getText('perLvLabel');
+                            const totalLabel = getText('totalLabel');
+                            stats += `<div>${attrLabel}: ${label}</div>`;
+                            stats += `<div>${perLvLabel}: ${item.val}</div>`;
+                            stats += `<div style="color:#0ff">${totalLabel}: ${Number((item.val * item.stack).toFixed(2))}</div>`;
                         }
                         tooltip.innerHTML = `
-                            <div style="color:${item.color || '#fff'}; font-weight:bold; margin-bottom:5px;">${item.name}</div>
-                            <div style="font-size:10px; color:#aaa; margin-bottom:5px;">${item.desc}</div>
-                            <div style="font-size:10px; color:#ccc;">${stats}</div>
-                            <div style="font-size:10px; color:#666; margin-top:5px;">Lv.${item.stack}</div>
+                            <div style="color:${item.color || '#fff'}; font-weight:bold; margin-bottom:5px; font-size:${isEn ? '11px' : '12px'};">${itemName}</div>
+                            <div style="font-size:${isEn ? '9px' : '10px'}; color:#aaa; margin-bottom:5px;">${itemDesc}</div>
+                            <div style="font-size:${isEn ? '9px' : '10px'}; color:#ccc;">${stats}</div>
+                            <div style="font-size:${isEn ? '9px' : '10px'}; color:#666; margin-top:5px;">Lv.${item.stack}</div>
                         `;
                         tooltip.style.display = 'block';
                         const rect = div.getBoundingClientRect();
@@ -2478,7 +3602,7 @@ const Game: React.FC = () => {
             score += 5000;
             exitPortal = { x: boss.x + 1, y: boss.y + 1 };
             createParticles(boss.x + 1, boss.y + 1, '#d000ff', 50);
-            showToast(`${boss.name} DEFEATED!`, "☠️");
+            showToast(getText('bossDefeated', boss.name), "☠️", true);
             unlockRoom(boss.roomGX, boss.roomGY);
             SoundSystem.play('levelup'); 
         }
@@ -2537,7 +3661,7 @@ const Game: React.FC = () => {
             pool = pool.concat(PASSIVES.filter(p => ownedPassiveIds.includes(p.id)).map(p => ({...p, pickupType:'passive'})));
         }
         
-        if (pool.length === 0) pool.push({ name: '治愈', icon: '💖', type: 'heal', desc: '恢复所有生命值' });
+        if (pool.length === 0) pool.push({ nameKey: 'maxHeal', icon: '💖', type: 'heal', descKey: 'healAll' });
         
         levelUpChoices = [];
         // Pick 3 random unique items
@@ -2573,7 +3697,7 @@ const Game: React.FC = () => {
             pool = pool.concat(PASSIVES.filter(p => ownedPassiveIds.includes(p.id)).map(p => ({...p, pickupType:'passive'})));
         }
         
-        if (pool.length === 0) pool.push({ name: 'MAX HEAL', icon: '💖', type: 'heal', desc: 'Full Heal' });
+        if (pool.length === 0) pool.push({ nameKey: 'maxHeal', icon: '💖', type: 'heal', descKey: 'healAll' });
         
         levelUpChoices = [];
         for(let i=0; i<3; i++) {
@@ -2592,30 +3716,45 @@ const Game: React.FC = () => {
         if(!container) return;
         container.innerHTML = '';
         
+        // 获取当前语言
+        const lang = (window as any).gameLanguage || 'zh';
+        const isEn = lang === 'en';
+        
         levelUpChoices.forEach((choice, index) => {
             const el = document.createElement('div');
             el.className = `card ${index === selectedRewardIndex ? 'selected' : ''}`;
             
             let status = "";
             let upgradeInfo = "";
+            // 获取翻译后的名称和描述
+            const choiceName = choice.nameKey ? getText(choice.nameKey) : (choice.name || getText('maxHeal'));
+            const choiceDesc = choice.descKey ? getText(choice.descKey) : (choice.desc || getText('healAll'));
+            const choiceUpg = choice.upgKey ? getText(choice.upgKey) : (choice.upg || '');
+            
             if (choice.pickupType === 'weapon') {
                  const owned = weaponInventory.find(w => w.id === choice.id);
-                 status = owned ? `升级 (Lv.${owned.stack+1})` : "新武器";
-                 upgradeInfo = choice.upg; 
+                 status = owned ? `${getText('upgrade')} (Lv.${owned.stack+1})` : getText('newWeapon');
+                 upgradeInfo = choiceUpg; 
             } else if (choice.pickupType === 'passive') {
                  const owned = passiveInventory.find(p => p.id === choice.id);
-                 status = owned ? `升级 (Lv.${owned.stack+1})` : "新能力";
-                 upgradeInfo = choice.upg; 
+                 status = owned ? `${getText('upgrade')} (Lv.${owned.stack+1})` : getText('newAbility');
+                 upgradeInfo = choiceUpg; 
             } else if (choice.type === 'heal') {
-                 status = "即时回复"; upgradeInfo = "恢复所有生命值";
+                 status = getText('instantHeal'); upgradeInfo = getText('healAll');
             }
+            
+            // 英文版使用更小的字体和更紧凑的布局
+            const titleSize = isEn ? '18px' : '24px';
+            const descSize = isEn ? '13px' : '16px';
+            const upgSize = isEn ? '13px' : '16px';
+            const statusSize = isEn ? '11px' : '14px';
             
             el.innerHTML = `
                 <div class="card-icon" style="font-size:160px; margin-bottom:15px; width:160px; height:160px; display:flex; justify-content:center; align-items:center;">${renderIcon(choice, 160)}</div>
-                <div class="card-title" style="margin-bottom:10px; font-size:24px; letter-spacing:0.15em;">${choice.name}</div>
-                <div class="card-desc" style="font-size:16px; color:#aaa; margin-bottom:15px; letter-spacing:0.1em;">${choice.desc.replace(/。/g, "。<br>").replace(/：/g, ": ")}</div>
-                <div class="card-upg" style="color:#0f0; font-size:16px; letter-spacing:0.1em;">${upgradeInfo}</div>
-                <div class="card-desc" style="color:#666; font-size:14px; margin-top:8px; letter-spacing:0.1em;">${status}</div>
+                <div class="card-title" style="margin-bottom:10px; font-size:${titleSize}; letter-spacing:${isEn ? '0.05em' : '0.15em'};">${choiceName}</div>
+                <div class="card-desc" style="font-size:${descSize}; color:#aaa; margin-bottom:15px; letter-spacing:${isEn ? '0.02em' : '0.1em'}; line-height:1.4;">${choiceDesc.replace(/。/g, "。<br>").replace(/：/g, ": ")}</div>
+                <div class="card-upg" style="color:#0f0; font-size:${upgSize}; letter-spacing:${isEn ? '0.02em' : '0.1em'};">${upgradeInfo}</div>
+                <div class="card-desc" style="color:#666; font-size:${statusSize}; margin-top:8px; letter-spacing:${isEn ? '0.02em' : '0.1em'};">${status}</div>
             `;
             el.onclick = () => {
                 selectedRewardIndex = index;
@@ -2636,7 +3775,7 @@ const Game: React.FC = () => {
         }
         isPaused = false;
         uiState = 'playing';
-        loop(); 
+        // 不需要再调用 loop()，因为 loop 已经在运行（只是暂停状态）
     }
 
     function updateHud() {
@@ -2669,23 +3808,40 @@ const Game: React.FC = () => {
     function gameVictory() {
         isPaused = true;
         uiState = 'gameover';
+        // 停止游戏循环
+        if (gameLoopId) {
+            cancelAnimationFrame(gameLoopId);
+            gameLoopId = null;
+        }
         SoundSystem.play('levelup');
+        
+        const lang = (window as any).gameLanguage || 'zh';
+        const isEn = lang === 'en';
+        
         const goTitle = document.getElementById('go-title');
-        if(goTitle) { goTitle.innerText = "VICTORY"; goTitle.style.color = "#d4af37"; }
+        if(goTitle) { goTitle.innerText = getText('victory'); goTitle.style.color = "#d4af37"; }
         const finalFloor = document.getElementById('final-floor');
-        if(finalFloor) finalFloor.innerText = "ALL CLEAR";
+        if(finalFloor) finalFloor.innerText = getText('allClear');
         const finalScore = document.getElementById('final-score');
         if(finalScore) finalScore.innerText = score.toString();
+        
+        // 更新游戏结束界面的文本
+        updateGameOverUI(true);
+        
         document.getElementById('gameover-screen')?.classList.remove('hidden');
         document.getElementById('pause-btn')?.classList.add('hidden');
         
         const restartBtn = document.getElementById('btn-restart-gameover');
-        if(restartBtn) restartBtn.onclick = () => {
-            // 隐藏道具栏
-            const invPanel = document.getElementById('inventory-panel');
-            if(invPanel) invPanel.style.display = 'none';
-            goToCharSelect();
-        };
+        if(restartBtn) {
+            restartBtn.onclick = () => {
+                // 隐藏道具栏
+                const invPanel = document.getElementById('inventory-panel');
+                if(invPanel) invPanel.style.display = 'none';
+                goToCharSelect();
+            };
+            restartBtn.textContent = getText('awakenAgain');
+            restartBtn.style.fontSize = isEn ? '14px' : '16px';
+        }
         
         // 通关简单或普通模式解锁所有角色
         let newUnlocks = false;
@@ -2697,30 +3853,77 @@ const Game: React.FC = () => {
         });
         if (newUnlocks) {
             localStorage.setItem('dragon_unlocks', JSON.stringify(unlockedDragons));
-            showToast("所有角色已解锁!", "🐉");
+            showToast(getText('allUnlocked'), "🐉", true);
         }
     }
 
     function gameOver() {
         isPaused = true;
         uiState = 'gameover';
+        // 停止游戏循环
+        if (gameLoopId) {
+            cancelAnimationFrame(gameLoopId);
+            gameLoopId = null;
+        }
         SoundSystem.play('gameover');
+        
+        const lang = (window as any).gameLanguage || 'zh';
+        const isEn = lang === 'en';
+        
         const goTitle = document.getElementById('go-title');
-        if(goTitle) { goTitle.innerText = "你死了"; goTitle.style.color = "#666"; }
+        if(goTitle) { goTitle.innerText = getText('youDied'); goTitle.style.color = "#666"; }
         const finalFloor = document.getElementById('final-floor');
         if(finalFloor) finalFloor.innerText = `${floor}-${MAX_FLOORS}`;
         const finalScore = document.getElementById('final-score');
         if(finalScore) finalScore.innerText = score.toString();
+        
+        // 更新游戏结束界面的文本
+        updateGameOverUI(false);
+        
         document.getElementById('gameover-screen')?.classList.remove('hidden');
         document.getElementById('pause-btn')?.classList.add('hidden');
         
         const restartBtn = document.getElementById('btn-restart-gameover');
-        if(restartBtn) restartBtn.onclick = () => {
-            // 隐藏道具栏
-            const invPanel = document.getElementById('inventory-panel');
-            if(invPanel) invPanel.style.display = 'none';
-            goToCharSelect();
-        };
+        if(restartBtn) {
+            restartBtn.onclick = () => {
+                // 隐藏道具栏
+                const invPanel = document.getElementById('inventory-panel');
+                if(invPanel) invPanel.style.display = 'none';
+                goToCharSelect();
+            };
+            restartBtn.textContent = getText('awakenAgain');
+            restartBtn.style.fontSize = isEn ? '14px' : '16px';
+        }
+    }
+    
+    function updateGameOverUI(isVictory: boolean) {
+        const lang = (window as any).gameLanguage || 'zh';
+        const isEn = lang === 'en';
+        
+        // 更新描述文本
+        const descEl = document.querySelector('#gameover-screen p:first-of-type');
+        if (descEl) {
+            descEl.textContent = isVictory ? getText('conquered') : getText('journeyEnds');
+            (descEl as HTMLElement).style.fontSize = isEn ? '14px' : '16px';
+        }
+        
+        // 更新层数标签
+        const floorLabelEl = document.querySelector('#gameover-screen p:nth-of-type(2)');
+        if (floorLabelEl) {
+            const floorSpan = floorLabelEl.querySelector('span');
+            const floorValue = floorSpan ? floorSpan.outerHTML : '';
+            floorLabelEl.innerHTML = `${getText('floorReached')}: ${floorValue}`;
+            (floorLabelEl as HTMLElement).style.fontSize = isEn ? '14px' : '16px';
+        }
+        
+        // 更新得分标签
+        const scoreLabelEl = document.querySelector('#gameover-screen p:nth-of-type(3)');
+        if (scoreLabelEl) {
+            const scoreSpan = scoreLabelEl.querySelector('span');
+            const scoreValue = scoreSpan ? scoreSpan.outerHTML : '';
+            scoreLabelEl.innerHTML = `${getText('finalScore')}: ${scoreValue}`;
+            (scoreLabelEl as HTMLElement).style.fontSize = isEn ? '14px' : '16px';
+        }
     }
 
     // ✅ 优化：提取渲染辅助函数到draw内部或外部，避免重复创建闭包
@@ -3342,7 +4545,7 @@ const Game: React.FC = () => {
                         // 下排，下移到难度/模式
                         charSelectRow = 1;
                     }
-                } else if (charSelectRow < 3) {
+                } else if (charSelectRow < 4) {
                     charSelectRow++;
                 }
                 refreshCharCards(); SoundSystem.play('uiSelect');
@@ -3376,6 +4579,7 @@ const Game: React.FC = () => {
                 refreshCharCards(); SoundSystem.play('uiSelect');
             } else if (e.key === 'Enter' || e.code === 'Space') {
                 // 空格和回车功能一样
+                // charSelectRow: 0=角色卡片, 1=难度/模式, 2=设置, 3=进入地牢, 4=测试
                 e.preventDefault();
                 if (charSelectRow === 0) confirmChar(); 
                 else if (charSelectRow === 1) {
@@ -3383,13 +4587,18 @@ const Game: React.FC = () => {
                     if (optionCol === 0) toggleDifficulty();
                     else toggleGameMode();
                 }
-                else if (charSelectRow === 2) confirmChar();
-                else if (charSelectRow === 3) toggleTestMode();
+                else if (charSelectRow === 2) { (window as any).openSettings?.(); }
+                else if (charSelectRow === 3) confirmChar();
+                else if (charSelectRow === 4) toggleTestMode();
             }
             return;
         }
     
         if (e.key === 'Escape') {
+            // 在 Electron 中阻止 ESC 退出全屏
+            if ((window as any).electron || navigator.userAgent.includes('Electron')) {
+                e.preventDefault();
+            }
             if (uiState === 'playing' || uiState === 'paused') togglePause();
             else if (uiState === 'encyclopedia') closeEncyclopedia();
             return;
@@ -3397,10 +4606,10 @@ const Game: React.FC = () => {
     
         if (uiState === 'paused') {
             if (isUp(e.key)) {
-                pauseMenuIndex = (pauseMenuIndex - 1 + 3) % 3;
+                pauseMenuIndex = (pauseMenuIndex - 1 + 4) % 4;
                 updatePauseMenu(); SoundSystem.play('uiSelect');
             } else if (isDown(e.key)) {
-                pauseMenuIndex = (pauseMenuIndex + 1) % 3;
+                pauseMenuIndex = (pauseMenuIndex + 1) % 4;
                 updatePauseMenu(); SoundSystem.play('uiSelect');
             } else if (e.key === 'Enter' || e.code === 'Space') {
                 e.preventDefault();
@@ -3427,11 +4636,15 @@ const Game: React.FC = () => {
                 const item = wikiItems[wikiIndex];
                 const pickupType = item.cat === 'WEAPON' ? 'weapon' : 'passive';
                 tryPickup({ type: pickupType, data: item });
-                updateInventoryUI(); showToast(`测试: 已获取 ${item.name}`, item); SoundSystem.play('pickup');
+                const itemName = item.nameKey ? getText(item.nameKey) : item.name;
+                const testLabel = getText('testGot');
+                updateInventoryUI(); showToast(`${testLabel} ${itemName}`, item); SoundSystem.play('pickup');
             } else if (e.key === 'Backspace' || e.key === 'Delete') {
                 const item = wikiItems[wikiIndex];
                 removeItemStack(item.id, item.cat === 'WEAPON');
-                updateInventoryUI(); showToast(`测试: 已移除 ${item.name}`, "🗑️"); SoundSystem.play('uiSelect');
+                const itemName = item.nameKey ? getText(item.nameKey) : item.name;
+                const testLabel = getText('testRemoved');
+                updateInventoryUI(); showToast(`${testLabel} ${itemName}`, "🗑️"); SoundSystem.play('uiSelect');
             }
             return;
         }
@@ -3499,9 +4712,11 @@ const Game: React.FC = () => {
     const handleMouseMove = (e: MouseEvent) => {
         if (!canvas) return;
         const rect = canvas.getBoundingClientRect();
+        const currentScale = (window as any).gameScale || 1;
+        // 考虑缩放后的坐标转换
         mouseRef.current = {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
+            x: (e.clientX - rect.left) / currentScale,
+            y: (e.clientY - rect.top) / currentScale
         };
     };
 
@@ -3525,6 +4740,17 @@ const Game: React.FC = () => {
         }
     };
 
+    // 在 Electron 中阻止 ESC 退出全屏（全局拦截）
+    const handleEscapeFullscreen = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && ((window as any).electron || (window as any).electronAPI?.isElectron)) {
+            if (document.fullscreenElement) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }
+    };
+    document.addEventListener('keydown', handleEscapeFullscreen, true); // capture phase
+
     document.addEventListener('keydown', handleKeydown);
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('touchstart', handleTouchStart, {passive: false});
@@ -3534,6 +4760,8 @@ const Game: React.FC = () => {
 
     return () => {
         if (gameLoopId) cancelAnimationFrame(gameLoopId);
+        if (gamepadPollingId) cancelAnimationFrame(gamepadPollingId);
+        document.removeEventListener('keydown', handleEscapeFullscreen, true);
         document.removeEventListener('keydown', handleKeydown);
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('touchstart', handleTouchStart);
@@ -3543,10 +4771,11 @@ const Game: React.FC = () => {
   }, []);
 
   return (
-    <div id="main-wrapper" className="flex flex-col items-center gap-2">
+    <div id="main-wrapper" className="flex flex-col items-center justify-center w-screen h-screen overflow-hidden bg-black">
       <style>{`
         :root { --bg-color: #1a1a20; --ui-color: #d4af37; --danger-color: #b30000; --xp-color: #00ccff; --devour-color: #ff00ff; }
         * { letter-spacing: 0.1em; }
+        html, body { margin: 0; padding: 0; overflow: hidden; background: #000; }
         .crt::before {
             content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
@@ -3695,10 +4924,20 @@ const Game: React.FC = () => {
         .changelog-row { border-bottom: 1px dashed #333; padding-bottom: 10px; margin-bottom: 10px; }
       `}</style>
 
-      <div id="game-container" className="relative w-[600px] h-[660px] shadow-[0_0_30px_rgba(0,0,0,0.8)] border-4 border-[#333] bg-black crt">
-        <canvas ref={canvasRef} id="gameCanvas" width="600" height="660" className="block w-full h-full bg-black image-pixelated"></canvas>
+      <div 
+        id="game-container" 
+        ref={containerRef}
+        className="relative shadow-[0_0_30px_rgba(0,0,0,0.8)] bg-black crt"
+        style={{
+          width: '600px',
+          height: '730px',
+          transform: `scale(${scale})`,
+          transformOrigin: 'center center'
+        }}
+      >
+        <canvas ref={canvasRef} id="gameCanvas" width="600" height="660" className="block w-full bg-black image-pixelated" style={{height: '660px'}}></canvas>
 
-        <div id="pause-btn" className="absolute top-[15px] right-[100px] pointer-events-auto cursor-pointer w-6 h-6 bg-black/50 border border-[#666] text-white flex justify-center items-center text-xs z-20 hover:bg-[#333] hover:border-[#d4af37] hover:text-[#d4af37] hidden" title="暂停 (ESC/ENTER)">⏸</div>
+        <div id="pause-btn" className="absolute top-[15px] right-[100px] pointer-events-auto cursor-pointer w-6 h-6 bg-black/50 border border-[#666] text-white flex justify-center items-center text-xs z-20 hover:bg-[#333] hover:border-[#d4af37] hover:text-[#d4af37] hidden" title={t.pauseHint}>⏸</div>
 
         <div id="hud" className="absolute top-[0px] left-[15px] flex flex-col gap-0 pointer-events-none z-[5] text-[12px] shadow-black drop-shadow-md">
             <div className="flex items-center gap-[10px]">
@@ -3726,20 +4965,20 @@ const Game: React.FC = () => {
             <div id="boss-name" className="text-center text-[10px] mb-[2px] text-[#d8b4ff]">BOSS</div>
             <div className="bar-container w-full"><div id="boss-hp-bar" className="bar-fill"></div></div>
         </div>
-        <div id="boss-warning" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-red-600 text-[24px] hidden drop-shadow-md z-[6] pointer-events-none w-full text-center">WARNING: BOSS APPROACHING</div>
+        <div id="boss-warning" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-red-600 text-[24px] hidden drop-shadow-md z-[6] pointer-events-none w-full text-center">{t.bossWarning}</div>
 
         <div id="start-screen" className="overlay absolute -top-[4px] -left-[4px] flex flex-col justify-between items-center bg-black z-10 text-center pt-[60px] pb-[60px]" style={{width: 'calc(100% + 8px)', height: 'calc(100% + 8px)'}}>
-            <div className="absolute top-[65px] right-[10px] cursor-pointer text-[#666] hover:text-[#d4af37] text-[10px] border border-[#333] px-2 py-1" onClick={() => setShowChangelog(true)}>更新日志</div>
+            <div className="absolute top-[65px] right-[10px] cursor-pointer text-[#666] hover:text-[#d4af37] text-[10px] border border-[#333] px-2 py-1" onClick={() => setShowChangelog(true)}>{t.changelog}</div>
             <div className="flex-1 flex flex-col justify-center items-center">
-                <img src="/fengmian.png" alt="巨龙天命" className="mb-2" style={{width: '95%', maxWidth: '750px', height: 'auto', imageRendering: 'pixelated'}} />
-                <p className="text-[14px] text-[#ccc] leading-normal my-1 mx-5">点击开始选择你的巨龙。</p>
+                <img src="./fengmian.png" alt="Dragon Destiny" className="mb-2" style={{width: '95%', maxWidth: '750px', height: 'auto', imageRendering: 'pixelated'}} />
+                <p className="text-[14px] text-[#ccc] leading-normal my-1 mx-5" style={{fontSize: language === 'en' ? '12px' : '14px'}}>{t.clickToStart}</p>
             </div>
-            <button id="btn-start-game" className="btn text-[14px]">开始游戏</button>
+            <button id="btn-start-game" className="btn" style={{fontSize: language === 'en' ? '12px' : '14px'}}>{t.startGame}</button>
         </div>
 
         {showChangelog && (
             <div className="absolute top-0 left-0 w-full h-full bg-black/95 z-50 flex flex-col items-center justify-center p-10">
-                <h2 className="text-[#d4af37] text-xl mb-5">更新日志 (CHANGELOG)</h2>
+                <h2 className="text-[#d4af37] text-xl mb-5">{t.changelogTitle}</h2>
                 <div className="w-full h-full overflow-y-auto text-left border border-[#333] p-5 bg-[#111] mb-5">
                     {CHANGELOG.map((log, i) => (
                         <div key={i} className="changelog-row">
@@ -3751,39 +4990,105 @@ const Game: React.FC = () => {
                         </div>
                     ))}
                 </div>
-                <button className="btn" style={{width:'150px'}} onClick={() => setShowChangelog(false)}>关闭</button>
+                <button className="btn" style={{width:'150px'}} onClick={() => setShowChangelog(false)}>{t.close}</button>
+            </div>
+        )}
+
+        {/* 设置面板 */}
+        {showSettings && (
+            <div className="absolute top-0 left-0 w-full h-full bg-black/95 z-50 flex flex-col items-center justify-center">
+                <h1 className="text-[#b30000] drop-shadow-md mb-8" style={{fontSize: language === 'en' ? '24px' : '28px'}}>⚙️ {t.settings}</h1>
+                
+                <div className="flex flex-col gap-[15px]">
+                    {/* 音量 */}
+                    <button 
+                        className={`btn ${settingsOptions[settingsIndex] === 'volume' ? 'selected-btn' : ''}`}
+                        style={{width: '220px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: language === 'en' ? '14px' : '20px'}}
+                        onClick={() => setSettingsIndex(0)}
+                    >
+                        <span>{t.volume}</span>
+                        <span style={{color: '#d4af37'}}>{Math.round(volume * 100)}%</span>
+                    </button>
+                    
+                    {/* 语言 */}
+                    <button 
+                        className={`btn ${settingsOptions[settingsIndex] === 'language' ? 'selected-btn' : ''}`}
+                        style={{width: '220px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: language === 'en' ? '11px' : '20px'}}
+                        onClick={() => {
+                            setSettingsIndex(1);
+                            setLanguage(l => l === 'zh' ? 'en' : 'zh');
+                        }}
+                    >
+                        <span>{t.language}</span>
+                        <span style={{color: '#d4af37', fontSize: language === 'en' ? '10px' : '18px'}}>{language === 'zh' ? t.chinese : t.english}</span>
+                    </button>
+                    <div style={{fontSize: '10px', color: '#666', marginTop: '-5px', textAlign: 'center'}}>
+                        {language === 'en' ? '(Restart required, Ctrl+R)' : '(需要重启游戏，Ctrl+R快速重启)'}
+                    </div>
+                    
+                    {/* 全屏模式 - 仅 Electron */}
+                    {isElectron && (
+                        <button 
+                            className={`btn ${settingsOptions[settingsIndex] === 'fullscreen' ? 'selected-btn' : ''}`}
+                            style={{width: '220px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: language === 'en' ? '14px' : '20px'}}
+                            onClick={() => {
+                                setSettingsIndex(2);
+                                toggleFullscreen();
+                            }}
+                        >
+                            <span>{t.fullscreen}</span>
+                            <span style={{color: '#d4af37'}}>{document.fullscreenElement ? 'ON' : 'OFF'}</span>
+                        </button>
+                    )}
+                    
+                    {/* 关闭按钮 */}
+                    <button 
+                        className={`btn ${settingsOptions[settingsIndex] === 'close' ? 'selected-btn' : ''}`}
+                        style={{width: '220px', marginTop: '20px', fontSize: language === 'en' ? '14px' : '20px'}}
+                        onClick={() => (window as any).closeSettings?.()}
+                    >
+                        {t.close} (ESC)
+                    </button>
+                </div>
+                
+                <div className="text-[#666] mt-6" style={{fontSize: language === 'en' ? '10px' : '12px'}}>
+                    {settingsOptions[settingsIndex] === 'volume' && `← → ${t.adjustVolume}`}
+                    {settingsOptions[settingsIndex] === 'language' && `Enter/← → ${t.toggleLanguage}`}
+                    {settingsOptions[settingsIndex] === 'fullscreen' && `Enter ${t.toggleFullscreen}`}
+                    {settingsOptions[settingsIndex] === 'close' && `Enter ${t.closeSettings}`}
+                </div>
             </div>
         )}
 
         <div id="char-select-screen" className="overlay hidden absolute -top-[4px] -left-[4px] flex flex-col justify-between items-center bg-black z-10 text-center px-[10px] pt-[10px] pb-[60px]" style={{width: 'calc(100% + 8px)', height: 'calc(100% + 8px)'}}>
             {/* 右上角百科全书按钮 - 上移30px */}
-            <div id="wiki-btn-select" className="absolute top-[-25px] right-[10px] w-[50px] h-[30px] text-lg cursor-pointer text-[#666] hover:text-[#aaa] hover:scale-110 transition bg-[#1a1a1a] flex items-center justify-center rounded" title="百科全书">📖</div>
+            <div id="wiki-btn-select" className="absolute top-[-25px] right-[10px] w-[50px] h-[30px] text-lg cursor-pointer text-[#666] hover:text-[#aaa] hover:scale-110 transition bg-[#1a1a1a] flex items-center justify-center rounded" title={t.encyclopedia}>📖</div>
             
             {/* 8个角色小卡片 (4列x2行) - 去掉文字 */}
             <div className="grid grid-cols-4 gap-[5px] w-full" id="char-grid">
                 <div className="char-card-mini selected" id="char-fire">
-                    <img src="/shadow-dragon.png" alt="烈焰魔龙" />
+                    <img src="./shadow-dragon.png" alt="烈焰魔龙" />
                 </div>
                 <div className="char-card-mini" id="char-ice">
-                    <img src="/void-dragon.png" alt="凛冬冰龙" />
+                    <img src="./void-dragon.png" alt="凛冬冰龙" />
                 </div>
                 <div className="char-card-mini" id="char-poison">
-                    <img src="/thunder-dragon.png" alt="剧毒腐龙" />
+                    <img src="./thunder-dragon.png" alt="剧毒腐龙" />
                 </div>
                 <div className="char-card-mini locked" id="char-plasma">
-                    <img src="/earth-dragon.png" alt="电浆能量兽" />
+                    <img src="./earth-dragon.png" alt="电浆能量兽" />
                 </div>
                 <div className="char-card-mini locked" id="char-side">
-                    <img src="/light-dragon.png" alt="海战巨鯨" />
+                    <img src="./light-dragon.png" alt="海战巨鯨" />
                 </div>
                 <div className="char-card-mini locked" id="char-rapid">
-                    <img src="/wind-dragon.png" alt="风暴迅猛兽" />
+                    <img src="./wind-dragon.png" alt="风暴迅猛兽" />
                 </div>
                 <div className="char-card-mini locked" id="char-heavy">
-                    <img src="/water-dragon.png" alt="炮火巨兽" />
+                    <img src="./water-dragon.png" alt="炮火巨兽" />
                 </div>
                 <div className="char-card-mini locked" id="char-triple">
-                    <img src="/metal-dragon.png" alt="三头金蛇" />
+                    <img src="./metal-dragon.png" alt="三头金蛇" />
                 </div>
             </div>
             
@@ -3793,7 +5098,7 @@ const Game: React.FC = () => {
                 <div className="flex flex-col items-center justify-start w-full">
                     {/* 大图 */}
                     <div className="flex items-center justify-center mt-[-65px]">
-                        <img id="char-detail-img" src="/shadow-dragon.png" alt="" className="w-[400px] h-[400px] object-contain" />
+                        <img id="char-detail-img" src="./shadow-dragon.png" alt="" className="w-[400px] h-[400px] object-contain" />
                     </div>
                     {/* 属性信息在图片下方 - 字体放大1倍，整体上移 */}
                     <div id="char-detail" className="flex flex-col items-center justify-center text-center mt-[-130px]">
@@ -3803,8 +5108,8 @@ const Game: React.FC = () => {
                         <p id="char-detail-stats" className="text-[18px] text-[#555]">伤害加成: +20%</p>
                     </div>
                 </div>
-                <img id="char-preview-img1" src="/shadow-dragon.png" alt="" className="hidden" />
-                <img id="char-preview-img2" src="/shadow-dragon.png" alt="" className="hidden" />
+                <img id="char-preview-img1" src="./shadow-dragon.png" alt="" className="hidden" />
+                <img id="char-preview-img2" src="./shadow-dragon.png" alt="" className="hidden" />
             </div>
             
             {/* 底部区域 */}
@@ -3814,6 +5119,15 @@ const Game: React.FC = () => {
                     <button id="btn-difficulty" className="btn" style={{fontSize: '12px', padding: '6px 12px', width: '130px', background: 'linear-gradient(180deg, #600 0%, #400 100%)', border: 'none'}}>难度: 普通</button>
                     <button id="btn-mode" className="btn" style={{fontSize: '12px', padding: '6px 12px', width: '130px', background: 'linear-gradient(180deg, #600 0%, #400 100%)', border: 'none'}}>模式: 单人</button>
                 </div>
+
+                {/* 设置按钮 */}
+                <button 
+                    id="btn-char-settings"
+                    className="btn mb-[6px]" 
+                    style={{fontSize: '12px', padding: '6px 12px', width: '130px', background: 'linear-gradient(180deg, #600 0%, #400 100%)', border: 'none'}}
+                >
+                    ⚙️ {t.settings}
+                </button>
 
                 <p id="lock-msg" className="text-[#666] h-3 text-[11px] mb-[4px]"></p>
 
@@ -3828,59 +5142,60 @@ const Game: React.FC = () => {
 
 
         <div id="levelup-screen" className="overlay hidden absolute top-0 left-0 w-full h-full flex flex-col justify-center items-center bg-black/95 z-10 text-center">
-            <h1 style={{color: 'var(--ui-color)'}} className="mb-5 text-[32px] tracking-wider">血脉觉醒</h1>
-            <div id="wiki-btn-levelup" className="absolute top-[20px] right-[20px] text-xl cursor-pointer text-[#aaa] bg-[#222] border-2 border-[#444] p-2 rounded z-25 hover:text-[#d4af37]" title="百科全书">📖</div>
-            <p className="text-[20px] text-[#ccc] my-1 tracking-wide">← 选择一项强化 →</p>
+            <h1 style={{color: 'var(--ui-color)', fontSize: language === 'en' ? '24px' : '32px', letterSpacing: language === 'en' ? '0.05em' : '0.1em'}} className="mb-5 tracking-wider">{t.bloodAwakening}</h1>
+            <div id="wiki-btn-levelup" className="absolute top-[20px] right-[20px] text-xl cursor-pointer text-[#aaa] bg-[#222] border-2 border-[#444] p-2 rounded z-25 hover:text-[#d4af37]" title={t.encyclopedia}>📖</div>
+            <p className="text-[#ccc] my-1" style={{fontSize: language === 'en' ? '14px' : '20px', letterSpacing: language === 'en' ? '0.02em' : '0.1em'}}>{t.selectEnhance}</p>
             <div id="cards-container" className="flex flex-col sm:flex-row gap-[10px] w-[95%] max-w-[580px] justify-center"></div>
         </div>
 
-        <div id="pause-screen" className="overlay hidden absolute top-0 left-0 w-full h-full flex flex-col justify-center items-center bg-black/95 z-10 text-center">
-            <h1 className="text-[#b30000] drop-shadow-md text-[28px] mb-5">暂停</h1>
+        <div id="pause-screen" className="overlay hidden absolute top-0 left-0 w-full flex flex-col justify-center items-center bg-black/95 z-10 text-center" style={{height: 'calc(100% - 70px)'}}>
+            <h1 className="text-[#b30000] drop-shadow-md text-[28px] mb-5">{t.paused}</h1>
             <div id="pause-menu-options" className="flex flex-col gap-[15px]">
-                <button id="btn-resume" className="btn selected-btn">继续游戏</button>
-                <button id="btn-wiki" className="btn">百科全书</button>
-                <button id="btn-restart" className="btn">重新开始</button>
+                <button id="btn-resume" className="btn selected-btn">{t.resume}</button>
+                <button id="btn-settings" className="btn">{t.settings}</button>
+                <button id="btn-wiki" className="btn">{t.encyclopedia}</button>
+                <button id="btn-restart" className="btn">{t.restart}</button>
             </div>
 
         </div>
 
-        <div id="encyclopedia-screen" className="overlay hidden absolute top-0 left-0 w-full h-full flex flex-col justify-center items-center bg-black/95 z-10 text-center">
-            <h1 className="text-white text-[24px] mb-5">百科全书</h1>
+        <div id="encyclopedia-screen" className="overlay hidden absolute top-0 left-0 w-full flex flex-col justify-center items-center bg-black/95 z-10 text-center" style={{height: 'calc(100% - 70px)'}}>
+            <h1 className="text-white mb-5" style={{fontSize: language === 'en' ? '20px' : '24px'}}>{t.encyclopediaTitle}</h1>
             <div id="encyclopedia-content" className="flex w-[80%] h-[70%] gap-[20px] text-left">
                 <div id="wiki-grid" className="flex-1 border border-[#333] bg-[#111] p-[5px]"></div>
                 <div id="wiki-details" className="flex-1 border border-[#333] bg-[#111] p-[20px] flex flex-col gap-[10px]">
-                    <div id="wiki-title" className="text-[#d4af37] text-[24px] mb-[10px] border-b border-[#333] pb-[5px]">选择一个道具</div>
-                    <div id="wiki-stats" className="text-[16px] text-[#aaa] leading-relaxed"></div>
-                    <div id="wiki-upgrade" className="text-[#0f0] mt-[10px] text-[16px] leading-relaxed"></div>
+                    <div id="wiki-title" className="text-[#d4af37] mb-[10px] border-b border-[#333] pb-[5px]" style={{fontSize: language === 'en' ? '18px' : '24px'}}>{t.selectItem}</div>
+                    <div id="wiki-stats" className="text-[#aaa] leading-relaxed" style={{fontSize: language === 'en' ? '13px' : '16px'}}></div>
+                    <div id="wiki-upgrade" className="text-[#0f0] mt-[10px] leading-relaxed" style={{fontSize: language === 'en' ? '13px' : '16px'}}></div>
                 </div>
             </div>
 
-            <button id="btn-close-wiki" className="btn">返回 (ESC)</button>
+            <button id="btn-close-wiki" className="btn" style={{fontSize: language === 'en' ? '12px' : '14px'}}>{t.returnEsc}</button>
         </div>
 
         <div id="gameover-screen" className="overlay hidden absolute top-0 left-0 w-full h-full flex flex-col justify-center items-center bg-black/95 z-10 text-center">
-            <h1 id="go-title" className="text-[#666] text-[28px] mb-5 drop-shadow-md">你死了</h1>
-            <p className="text-[16px] text-[#ccc] leading-loose">你的征途结束了。</p>
-            <p className="text-[16px] text-[#ccc] leading-loose">到达层数: <span id="final-floor"></span></p>
-            <p className="text-[16px] text-[#ccc] leading-loose">最终得分: <span id="final-score"></span></p>
+            <h1 id="go-title" className="text-[#666] text-[28px] mb-5 drop-shadow-md">{t.youDied}</h1>
+            <p className="text-[#ccc] leading-loose" style={{fontSize: language === 'en' ? '14px' : '16px'}}>{t.journeyEnds}</p>
+            <p className="text-[#ccc] leading-loose" style={{fontSize: language === 'en' ? '14px' : '16px'}}>{t.floorReached}: <span id="final-floor"></span></p>
+            <p className="text-[#ccc] leading-loose" style={{fontSize: language === 'en' ? '14px' : '16px'}}>{t.finalScore}: <span id="final-score"></span></p>
 
-            <button id="btn-restart-gameover" className="btn">再次觉醒</button>
+            <button id="btn-restart-gameover" className="btn" style={{fontSize: language === 'en' ? '14px' : '16px'}}>{t.awakenAgain}</button>
         </div>
 
-        <div id="mobile-controls" className="hidden absolute bottom-[10px] w-full text-center text-[10px] text-white/30 pointer-events-none sm:hidden">Swipe to Move</div>
-      </div>
-
-      <div id="inventory-panel" className="w-[600px] bg-transparent p-[10px] box-border flex justify-center items-center relative gap-[40px]">
+        <div id="mobile-controls" className="hidden absolute bottom-[70px] w-full text-center text-[10px] text-white/30 pointer-events-none sm:hidden">{t.swipeToMove}</div>
+        
+        <div id="inventory-panel" className="absolute bottom-0 left-0 w-full bg-black/80 p-[10px] box-border flex justify-center items-center gap-[40px] border-t border-[#333] z-20">
             <div className="flex items-center gap-[8px]">
                 <div id="inv-weapons" className="flex gap-[8px]"></div>
             </div>
 
             <div id="inv-tooltip"></div>
-            <div id="toast" className="absolute top-[40px] left-1/2 -translate-x-1/2 bg-black/80 border border-[#d4af37] px-4 py-2 text-[#d4af37] text-sm z-20 text-center whitespace-nowrap"></div>
+            <div id="toast" className="absolute top-[-40px] left-1/2 -translate-x-1/2 bg-black/80 border border-[#d4af37] px-4 py-2 text-[#d4af37] text-sm z-20 text-center whitespace-nowrap"></div>
 
             <div className="flex items-center gap-[8px]">
                 <div id="inv-passives" className="flex gap-[8px]"></div>
             </div>
+        </div>
       </div>
     </div>
   );
